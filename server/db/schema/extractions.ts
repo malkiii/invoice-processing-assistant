@@ -12,6 +12,7 @@ import {
   uniqueIndex,
   uuid,
 } from 'drizzle-orm/pg-core'
+import type { CheckResult } from '../../domain/checks'
 import type { ProviderKind } from '../../domain/provider-presets'
 import type { InvoiceValues } from '../../domain/template/fields'
 import type { TemplateSnapshot } from '../../domain/template/snapshot'
@@ -73,7 +74,7 @@ export const invoice = pgTable(
     /** The User's edits, overlaid on Raw Values (Review, issue 06). */
     correctedValues: jsonb('corrected_values').$type<InvoiceValues>().default({}).notNull(),
     /** Results of the last Checks run (issue 07); null until Checks have run. */
-    checkResults: jsonb('check_results').$type<unknown>(),
+    checkResults: jsonb('check_results').$type<CheckResult[]>(),
     /** Set by "Mark as reviewed"; null means unreviewed. */
     reviewedAt: timestamp('reviewed_at', { withTimezone: true }),
     createdAt: timestamp('created_at', { withTimezone: true }).defaultNow().notNull(),

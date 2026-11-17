@@ -1,6 +1,7 @@
 // Worker entry point. Bundled separately from Nuxt (scripts/build-worker.mjs)
 // and run in the `worker` container from the same image as the app.
 import { createDatabase } from './db/client'
+import { createChecksRunner } from './domain/checks/recheck'
 import { createExtractionRunner } from './domain/extraction/runner'
 import { createPdftoppmRasterizer } from './domain/extraction/rasterize'
 import { createS3Storage } from './domain/storage'
@@ -17,7 +18,7 @@ const runner = createExtractionRunner({
   storage: createS3Storage(readStorageConfig()),
   providers: createProviderConnections({ db, encryptionKey: config.encryptionKey }),
   rasterizePdf: createPdftoppmRasterizer(),
-  // Checks (issue 07) plug in here as `checks`.
+  checks: createChecksRunner(db),
 })
 const concurrency = Number(process.env.WORKER_CONCURRENCY) || undefined
 const worker = await startWorker({ databaseUrl: config.databaseUrl, extraction: { runner, concurrency } })
