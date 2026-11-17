@@ -18,6 +18,9 @@ export const instanceSettings = pgTable(
     maxDocumentPages: integer('max_document_pages')
       .default(DEFAULT_INSTANCE_SETTINGS.maxDocumentPages)
       .notNull(),
+    maxConcurrentDocumentsPerUser: integer('max_concurrent_documents_per_user')
+      .default(DEFAULT_INSTANCE_SETTINGS.maxConcurrentDocumentsPerUser)
+      .notNull(),
     updatedAt: timestamp('updated_at', { withTimezone: true })
       .defaultNow()
       .$onUpdate(() => new Date())
@@ -27,5 +30,6 @@ export const instanceSettings = pgTable(
     check('instance_settings_singleton', sql`${t.id} = 1`),
     check('instance_settings_sign_up_policy', sql`${t.signUpPolicy} in ('open', 'invite-only')`),
     check('instance_settings_limits_positive', sql`${t.maxDocumentBytes} > 0 and ${t.maxDocumentPages} > 0`),
+    check('instance_settings_concurrency_positive', sql`${t.maxConcurrentDocumentsPerUser} > 0`),
   ],
 )

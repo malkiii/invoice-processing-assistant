@@ -91,3 +91,7 @@ _Avoid_: Account, customer, member, tenant
 **Admin**:
 The User who administers the instance: the first to sign up. Sets the sign-up policy (open or invite-only) but cannot see other Users' Documents.
 _Avoid_: Owner, superuser, root
+
+**Invite**:
+An Admin's single-use, expiring link that lets one email address sign up while the sign-up policy is invite-only.
+_Avoid_: Invitation code, referral

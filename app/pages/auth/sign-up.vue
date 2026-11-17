@@ -8,7 +8,12 @@ import { Label } from '@/components/ui/label'
 definePageMeta({ layout: 'auth', middleware: 'guest' })
 useHead({ title: 'Sign up' })
 
-const form = reactive({ name: '', email: '', password: '' })
+// An Admin's invite link carries `?invite=<token>&email=<address>`.
+const route = useRoute()
+const inviteToken = typeof route.query.invite === 'string' ? route.query.invite : undefined
+const invitedEmail = typeof route.query.email === 'string' ? route.query.email : ''
+
+const form = reactive({ name: '', email: invitedEmail, password: '' })
 const error = ref<string | null>(null)
 const pending = ref(false)
 const { refresh } = useAuthSession()
@@ -16,7 +21,9 @@ const { refresh } = useAuthSession()
 async function submit() {
   pending.value = true
   error.value = null
-  const { data, error: err } = await authClient.signUp.email({ ...form, callbackURL: '/app' })
+  // `inviteToken` is read by the server's sign-up hook; it is not a Better Auth field.
+  const body = { ...form, inviteToken, callbackURL: '/app' }
+  const { data, error: err } = await authClient.signUp.email(body)
   pending.value = false
   if (err) {
     error.value = err.message ?? 'Sign-up failed.'
@@ -35,7 +42,8 @@ async function submit() {
   <Card>
     <CardHeader>
       <CardTitle>Create your account</CardTitle>
-      <CardDescription>The first account on a new instance becomes its Admin.</CardDescription>
+      <CardDescription v-if="inviteToken">You've been invited. Create your account with the invited email.</CardDescription>
+      <CardDescription v-else>The first account on a new instance becomes its Admin.</CardDescription>
     </CardHeader>
     <CardContent>
       <form class="grid gap-4" @submit.prevent="submit">
