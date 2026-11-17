@@ -1,0 +1,123 @@
+# Production-like stack: `cp .env.example .env`, fill in the secrets, then `docker compose up`.
+# Add `--profile ollama` to also run a local Ollama server.
+
+x-app-env: &app-env
+  DATABASE_URL: postgres://${POSTGRES_USER:-invoices}:${POSTGRES_PASSWORD:-invoices}@postgres:5432/${POSTGRES_DB:-invoices}
+  BETTER_AUTH_SECRET: ${BETTER_AUTH_SECRET:?Set BETTER_AUTH_SECRET in .env}
+  BETTER_AUTH_URL: ${BETTER_AUTH_URL:-http://localhost:3000}
+  ENCRYPTION_KEY: ${ENCRYPTION_KEY:?Set ENCRYPTION_KEY in .env}
+  SMTP_HOST: ${SMTP_HOST:-}
+  SMTP_PORT: ${SMTP_PORT:-}
+  SMTP_SECURE: ${SMTP_SECURE:-}
+  SMTP_USER: ${SMTP_USER:-}
+  SMTP_PASSWORD: ${SMTP_PASSWORD:-}
+  SMTP_FROM: ${SMTP_FROM:-}
+  GOOGLE_CLIENT_ID: ${GOOGLE_CLIENT_ID:-}
+  GOOGLE_CLIENT_SECRET: ${GOOGLE_CLIENT_SECRET:-}
+  GITHUB_CLIENT_ID: ${GITHUB_CLIENT_ID:-}
+  GITHUB_CLIENT_SECRET: ${GITHUB_CLIENT_SECRET:-}
+  S3_ENDPOINT: ${S3_ENDPOINT:-http://minio:9000}
+  S3_PUBLIC_ENDPOINT: ${S3_PUBLIC_ENDPOINT:-http://localhost:9000}
+  S3_REGION: ${S3_REGION:-us-east-1}
+  S3_BUCKET: ${S3_BUCKET:-documents}
+  S3_ACCESS_KEY_ID: ${S3_ACCESS_KEY_ID:-${MINIO_ROOT_USER:-minioadmin}}
+  S3_SECRET_ACCESS_KEY: ${S3_SECRET_ACCESS_KEY:-${MINIO_ROOT_PASSWORD:-minioadmin}}
+  S3_FORCE_PATH_STYLE: ${S3_FORCE_PATH_STYLE:-true}
+  OLLAMA_BASE_URL: ${OLLAMA_BASE_URL:-http://ollama:11434}
+
+services:
+  app:
+    build:
+      context: .
+      target: runtime
+    image: invoice-processing-assistant:local
+    environment: *app-env
+    ports:
+      - '${APP_PORT:-3000}:3000'
+    depends_on:
+      postgres:
+        condition: service_healthy
+      minio-init:
+        condition: service_completed_successfully
+    healthcheck:
+      test: ['CMD-SHELL', 'wget -qO- http://127.0.0.1:3000/api/health || exit 1']
+      interval: 10s
+      timeout: 3s
+      start_period: 30s
+      retries: 5
+    restart: unless-stopped
+
+  worker:
+    # Same image as the app (the build is cached), different entry point.
+    build:
+      context: .
+      target: runtime
+    image: invoice-processing-assistant:local
+    command: ['node', '.output/worker/index.mjs']
+    environment: *app-env
+    depends_on:
+      postgres:
+        condition: service_healthy
+      # The app applies migrations on start; wait for it before processing jobs.
+      app:
+        condition: service_healthy
+    restart: unless-stopped
+
+  postgres:
+    image: postgres:16-alpine
+    environment:
+      POSTGRES_USER: ${POSTGRES_USER:-invoices}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-invoices}
+      POSTGRES_DB: ${POSTGRES_DB:-invoices}
+    volumes:
+      - postgres-data:/var/lib/postgresql/data
+    healthcheck:
+      test: ['CMD-SHELL', 'pg_isready -U $${POSTGRES_USER} -d $${POSTGRES_DB}']
+      interval: 5s
+      timeout: 3s
+      retries: 10
+    restart: unless-stopped
+
+  minio:
+    # Upstream stopped publishing MinIO images; pgsty/minio is a maintained community build of the same server.
+    image: pgsty/minio:RELEASE.2026-08-04T00-00-00Z
+    command: ['server', '/data', '--console-address', ':9001']
+    environment:
+      MINIO_ROOT_USER: ${MINIO_ROOT_USER:-minioadmin}
+      MINIO_ROOT_PASSWORD: ${MINIO_ROOT_PASSWORD:-minioadmin}
+    ports:
+      - '${MINIO_PORT:-9000}:9000'
+      - '${MINIO_CONSOLE_PORT:-9001}:9001'
+    volumes:
+      - minio-data:/data
+    restart: unless-stopped
+
+  # Creates the Documents bucket once MinIO is reachable, then exits.
+  minio-init:
+    image: pgsty/mc:RELEASE.2026-11-12T00-00-00Z
+    depends_on:
+      - minio
+    environment:
+      MINIO_ROOT_USER: ${MINIO_ROOT_USER:-minioadmin}
+      MINIO_ROOT_PASSWORD: ${MINIO_ROOT_PASSWORD:-minioadmin}
+      S3_BUCKET: ${S3_BUCKET:-documents}
+    entrypoint:
+      - /bin/sh
+      - -c
+      - |
+        until mc alias set local http://minio:9000 "$$MINIO_ROOT_USER" "$$MINIO_ROOT_PASSWORD" >/dev/null 2>&1; do
+          echo 'waiting for minio...'; sleep 1
+        done
+        mc mb --ignore-existing "local/$$S3_BUCKET"
+
+  ollama:
+    image: ollama/ollama:latest
+    profiles: ['ollama']
+    volumes:
+      - ollama-data:/root/.ollama
+    restart: unless-stopped
+
+volumes:
+  postgres-data:
+  minio-data:
+  ollama-data:
