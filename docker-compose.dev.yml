@@ -1,0 +1,28 @@
+# Hot-reload overlay:
+#   docker compose -f docker-compose.yml -f docker-compose.dev.yml up
+# The source is bind-mounted; dependencies stay in the image's node_modules.
+
+x-dev: &dev
+  build:
+    context: .
+    target: dev
+  image: invoice-processing-assistant:dev
+  volumes:
+    - .:/app
+    - /app/node_modules
+    - /app/.nuxt
+  environment:
+    NODE_ENV: development
+    # File events do not cross Docker Desktop bind mounts reliably; poll instead.
+    CHOKIDAR_USEPOLLING: 'true'
+
+services:
+  app:
+    <<: *dev
+    command: ['sh', '-c', 'pnpm db:migrate && pnpm dev --host 0.0.0.0']
+    healthcheck:
+      start_period: 120s
+
+  worker:
+    <<: *dev
+    command: ['pnpm', 'dev:worker']

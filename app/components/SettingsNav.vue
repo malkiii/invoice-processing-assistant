@@ -1,0 +1,21 @@
+<script setup lang="ts">
+// Later features add Providers, Sources and Preferences.
+const items = [
+  { label: 'Profile', to: '/app/settings/profile' },
+  { label: 'Security', to: '/app/settings/security' },
+]
+</script>
+
+<template>
+  <nav class="flex gap-1 border-b" aria-label="Settings">
+    <NuxtLink
+      v-for="item in items"
+      :key="item.to"
+      :to="item.to"
+      class="-mb-px border-b-2 border-transparent px-3 py-2 text-sm text-muted-foreground hover:text-foreground"
+      active-class="!border-primary !text-foreground"
+    >
+      {{ item.label }}
+    </NuxtLink>
+  </nav>
+</template>
