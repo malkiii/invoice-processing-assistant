@@ -1,12 +1,8 @@
 import { eq } from 'drizzle-orm'
-import { afterAll, beforeAll, beforeEach, describe, expect, it, vi } from 'vitest'
+import { afterAll, beforeAll, describe, expect, it } from 'vitest'
 import { batch, document, extraction, invoice, user } from '../../server/db/schema'
-import {
-  createReview,
-  type InvoiceListFilter,
-  type InvoiceRechecker,
-  type Review,
-} from '../../server/domain/review/review'
+import type { CheckResult } from '../../server/domain/checks'
+import { createReview, type InvoiceListFilter, type Review } from '../../server/domain/review/review'
 import { FieldCorrectionError } from '../../server/domain/review/values'
 import { DEFAULT_TEMPLATE, DEFAULT_TEMPLATE_ID } from '../../server/domain/template/default-template'
 import { snapshotTemplate } from '../../server/domain/template/snapshot'
@@ -14,7 +10,6 @@ import { startTestDatabase, type TestDatabase } from './support/database'
 
 let testDb: TestDatabase
 let review: Review
-const recheck: InvoiceRechecker = { recheck: vi.fn(async () => {}) }
 
 const alice = 'user-alice'
 const bob = 'user-bob'
@@ -25,6 +20,8 @@ const rawA = {
   issue_date: '2026-03-01',
   currency: 'EUR',
   line_items: [{ description: 'Consulting', quantity: 2, unit_price: 500, amount: 1000, tax_rate: 19 }],
+  subtotal: 1000,
+  tax_total: 190,
   total: 1190,
 }
 
@@ -34,21 +31,17 @@ beforeAll(async () => {
     { id: alice, name: 'Alice', email: 'alice@example.com' },
     { id: bob, name: 'Bob', email: 'bob@example.com' },
   ])
-  review = createReview({ db: testDb.db, recheck })
+  review = createReview({ db: testDb.db })
 })
 
 afterAll(async () => {
   await testDb?.stop()
 })
 
-beforeEach(() => {
-  vi.mocked(recheck.recheck).mockClear()
-})
-
 /** A Document with one Current Extraction holding the given Invoices' Raw Values. */
 async function extractedDocument(
   invoices: Record<string, unknown>[],
-  opts: { userId?: string; name?: string; checkResults?: unknown[] | null } = {},
+  opts: { userId?: string; name?: string; checkResults?: CheckResult[] | null } = {},
 ) {
   const userId = opts.userId ?? alice
   const [b] = await testDb.db.insert(batch).values({ userId, source: 'upload' }).returning()
@@ -107,21 +100,32 @@ describe('Review: Corrected Values', () => {
     const { invoices } = await extractedDocument([rawA])
     const id = invoices[0]!.id
     await review.correctField(alice, id, 'total', 1200)
-    await review.correctField(alice, id, 'line_items.0.amount', 1010)
+    await review.correctField(alice, id, 'line_items[0].amount', 1010)
 
     const reverted = await review.revertField(alice, id, 'total')
 
     expect(reverted!.values.total).toBe(1190)
-    expect(reverted!.correctedPaths).toEqual(['line_items.0.amount'])
+    expect(reverted!.correctedPaths).toEqual(['line_items[0].amount'])
   })
 
   it('re-runs Checks after every correction and revert', async () => {
-    const { invoices } = await extractedDocument([rawA])
+    const { invoices } = await extractedDocument([{ ...rawA, invoice_number: 'RECHECK-1' }])
     const id = invoices[0]!.id
-    await review.correctField(alice, id, 'total', 1200)
-    await review.revertField(alice, id, 'total')
-    expect(recheck.recheck).toHaveBeenCalledTimes(2)
-    expect(recheck.recheck).toHaveBeenCalledWith({ userId: alice, invoiceId: id })
+
+    const broken = await review.correctField(alice, id, 'total', 1200)
+    expect(broken!.checkStatus).toBe('failing')
+    expect(broken!.checkResults!.find((r) => r.id === 'totals_sum')).toMatchObject({ status: 'fail' })
+
+    const fixed = await review.revertField(alice, id, 'total')
+    expect(fixed!.checkStatus).toBe('clean')
+  })
+
+  it('corrects a cell of a list item', async () => {
+    const { invoices } = await extractedDocument([{ ...rawA, invoice_number: 'LIST-1' }])
+    const updated = await review.correctField(alice, invoices[0]!.id, 'line_items[0].amount', 1010)
+    expect(updated!.values.line_items).toEqual([{ ...rawA.line_items[0], amount: 1010 }])
+    expect(updated!.correctedPaths).toEqual(['line_items[0].amount'])
+    expect(updated!.rawValues).toEqual({ ...rawA, invoice_number: 'LIST-1' })
   })
 
   it('rejects a value that does not fit the Template Snapshot', async () => {
@@ -179,8 +183,21 @@ describe('Review: Template Snapshot', () => {
 })
 
 describe('Invoice table', () => {
-  const fail = { id: 'totals', status: 'fail', message: 'Line items do not add up to the subtotal', fields: ['total'] }
-  const pass = { id: 'dates', status: 'pass', message: 'Dates are valid', fields: ['issue_date'] }
+  it('shows and filters by corrected values', async () => {
+    const userId = 'user-corrected'
+    await testDb.db.insert(user).values({ id: userId, name: 'C', email: 'corrected@example.com' })
+    const { invoices } = await extractedDocument([rawA], { userId })
+    await review.correctField(userId, invoices[0]!.id, 'vendor.name', 'Globex Corp')
+    await review.correctField(userId, invoices[0]!.id, 'total', 1200)
+
+    const [row] = await review.listInvoices(userId, { vendor: 'globex' })
+    expect(row).toMatchObject({ id: invoices[0]!.id, vendorName: 'Globex Corp', total: 1200, corrected: true })
+    expect(await review.listInvoices(userId, { vendor: 'acme' })).toEqual([])
+  })
+
+  // Stored directly: nothing in this block corrects a value, so Checks do not recompute them.
+  const fail: CheckResult = { id: 'line_items_sum', status: 'fail', message: 'Line items do not add up to the subtotal', fields: ['subtotal'] }
+  const pass: CheckResult = { id: 'dates', status: 'pass', message: 'Dates are valid', fields: ['issue_date'] }
   const userId = 'user-table'
   let ids: Record<string, string>
 
@@ -203,12 +220,11 @@ describe('Invoice table', () => {
     await review.setReviewed(userId, ids.clean!, true)
   })
 
-  it('lists Current Invoices with merged values, Check status and failed Checks', async () => {
-    await review.correctField(userId, ids.unchecked!, 'vendor.name', 'Globex Corp')
+  it('lists Current Invoices with Check status and failed Checks', async () => {
     const rows = await review.listInvoices(userId, {})
     expect(rows).toHaveLength(3)
     const byId = Object.fromEntries(rows.map((r) => [r.id, r]))
-    expect(byId[ids.unchecked!]).toMatchObject({ vendorName: 'Globex Corp', corrected: true, checkStatus: 'unchecked' })
+    expect(byId[ids.unchecked!]).toMatchObject({ vendorName: 'Globex', corrected: false, checkStatus: 'unchecked' })
     expect(byId[ids.failing!]).toMatchObject({
       vendorName: 'Acme GmbH',
       invoiceNumber: 'AC-7',

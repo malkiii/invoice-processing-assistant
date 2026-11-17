@@ -10,18 +10,11 @@ import { isUuid } from '../document-library'
 import type { DocumentFormat } from '../document-inspection'
 import type { InvoiceValues } from '../template/fields'
 import type { TemplateSnapshot } from '../template/snapshot'
-import { checkStatusOf, readCheckResults, type CheckResult, type InvoiceCheckStatus } from './check-results'
-import { applyCorrection, mergeInvoiceValues, type CorrectedValues } from './values'
-
-/**
- * Re-runs Checks on one Invoice after its values changed (a correction or a revert). Checks
- * (issue 07) plug in here; a throw is logged and never fails the correction.
- */
-export interface InvoiceRechecker {
-  recheck(input: { userId: string; invoiceId: string }): Promise<void>
-}
-
-export const noRecheck: InvoiceRechecker = { recheck: async () => {} }
+import type { CheckResult } from '../checks'
+import { recheckInvoice } from '../checks/recheck'
+import { mergeValues } from '../template/values'
+import { checkStatusOf, type InvoiceCheckStatus } from './check-results'
+import { applyCorrection, correctedPaths } from './values'
 
 /** `changed`: the Template was edited since this Extraction ran; `deleted`: it no longer exists. */
 export type TemplateChange = 'none' | 'changed' | 'deleted'
@@ -38,9 +31,10 @@ export interface InvoiceReview {
   templateSnapshot: TemplateSnapshot
   templateChange: TemplateChange
   rawValues: InvoiceValues
-  correctedValues: CorrectedValues
-  /** Raw Values overlaid with Corrected Values: what is shown and exported. */
+  correctedValues: InvoiceValues
+  /** Raw Values overlaid with Corrected Values (`mergeValues`): what is shown, checked and exported. */
   values: InvoiceValues
+  /** Paths (`total`, `vendor.name`, `line_items[0].amount`) of Fields whose value was corrected. */
   correctedPaths: string[]
   checkResults: CheckResult[] | null
   checkStatus: InvoiceCheckStatus
@@ -49,13 +43,11 @@ export interface InvoiceReview {
 
 export interface ReviewDeps {
   db: Database
-  recheck?: InvoiceRechecker
   log?: Pick<Console, 'error'>
 }
 
 export function createReview(deps: ReviewDeps) {
   const { db } = deps
-  const recheck = deps.recheck ?? noRecheck
   const log = deps.log ?? console
 
   async function getInvoice(userId: string, invoiceId: string): Promise<InvoiceReview | null> {
@@ -77,8 +69,8 @@ export function createReview(deps: ReviewDeps) {
       .where(and(eq(invoice.id, invoiceId), eq(invoice.userId, userId)))
     if (!row) return null
     const { invoice: inv } = row
-    const corrected = inv.correctedValues as CorrectedValues
-    const checkResults = readCheckResults(inv.checkResults)
+    const corrected = inv.correctedValues
+    const checkResults = inv.checkResults ?? null
     const templateChange: TemplateChange = !row.currentTemplateFields
       ? 'deleted'
       : JSON.stringify(row.currentTemplateFields) === JSON.stringify(row.templateSnapshot.fields)
@@ -96,8 +88,8 @@ export function createReview(deps: ReviewDeps) {
       templateChange,
       rawValues: inv.rawValues,
       correctedValues: corrected,
-      values: mergeInvoiceValues(inv.rawValues, corrected),
-      correctedPaths: Object.keys(corrected),
+      values: mergeValues(inv.rawValues, corrected),
+      correctedPaths: correctedPaths(row.templateSnapshot.fields, inv.rawValues, corrected),
       checkResults,
       checkStatus: checkStatusOf(checkResults),
       reviewedAt: inv.reviewedAt,
@@ -106,7 +98,7 @@ export function createReview(deps: ReviewDeps) {
 
   async function runRecheck(userId: string, invoiceId: string) {
     try {
-      await recheck.recheck({ userId, invoiceId })
+      await recheckInvoice(db, userId, invoiceId)
     } catch (error) {
       log.error('[review] re-running Checks failed', error)
     }
@@ -239,7 +231,7 @@ export function createReview(deps: ReviewDeps) {
         .orderBy(...order)
         .limit(Math.min(filter.limit ?? 200, 500))
       return rows.map(({ correctedValues, checkResults: stored, total, ...row }) => {
-        const checkResults = readCheckResults(stored)
+        const checkResults = stored ?? null
         return {
           ...row,
           total: typeof total === 'number' ? total : null,
@@ -326,7 +318,8 @@ export interface InvoiceListItem {
  * use the built-in default Template's keys; Invoices of custom Templates without them show blanks.
  */
 function mergedJson(path: string[]) {
-  return sql<unknown>`coalesce(${invoice.correctedValues} -> ${path.join('.')}, ${invoice.rawValues} #> ${`{${path.join(',')}}`}::text[])`
+  const pgPath = `{${path.join(',')}}`
+  return sql<unknown>`coalesce(${invoice.correctedValues} #> ${pgPath}::text[], ${invoice.rawValues} #> ${pgPath}::text[])`
 }
 
 function mergedText(path: string[]) {

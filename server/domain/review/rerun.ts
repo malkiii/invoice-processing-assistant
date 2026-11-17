@@ -6,6 +6,7 @@
 import { and, asc, eq, inArray, isNull, ne, or, sql } from 'drizzle-orm'
 import type { Database } from '../../db/client'
 import { document, extraction, invoice, providerConnection, template } from '../../db/schema'
+import { createChecksRunner } from '../checks/recheck'
 import { isUuid } from '../document-library'
 import type { ExtractionChoice, ExtractionQueue } from '../extraction-queue'
 import { findUsableTemplate } from '../templates'
@@ -100,10 +101,13 @@ export function createReextraction(deps: { db: Database; queue: ExtractionQueue 
       }
     },
 
-    /** Makes an earlier Extraction of the Document current again. False when there is no such Extraction. */
+    /**
+     * Makes an earlier Extraction of the Document current again, then re-runs Checks (duplicates
+     * only count Current Extractions). False when there is no such Extraction.
+     */
     async setCurrentExtraction(userId: string, documentId: string, extractionId: string): Promise<boolean> {
       if (!isUuid(documentId) || !isUuid(extractionId)) return false
-      return db.transaction(async (tx) => {
+      const switched = await db.transaction(async (tx) => {
         const [target] = await tx
           .select({ id: extraction.id })
           .from(extraction)
@@ -118,6 +122,14 @@ export function createReextraction(deps: { db: Database; queue: ExtractionQueue 
         await tx.update(extraction).set({ isCurrent: true }).where(eq(extraction.id, extractionId))
         return true
       })
+      if (switched) {
+        try {
+          await createChecksRunner(db).run({ userId, documentId, extractionId })
+        } catch (error) {
+          console.error('[rerun] re-running Checks failed', error)
+        }
+      }
+      return switched
     },
   }
 }

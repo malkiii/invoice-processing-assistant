@@ -1,6 +1,7 @@
 import { describe, expect, it } from 'vitest'
 import { DEFAULT_TEMPLATE } from '../template/default-template'
-import { applyCorrection, FieldCorrectionError, mergeInvoiceValues } from './values'
+import { mergeValues } from '../template/values'
+import { applyCorrection, correctedPaths, FieldCorrectionError } from './values'
 
 const raw = {
   vendor: { name: 'Acme GmbH', address: null, tax_id: 'DE1' },
@@ -14,53 +15,59 @@ const raw = {
 }
 const fields = DEFAULT_TEMPLATE.fields
 
-describe('mergeInvoiceValues', () => {
-  it('returns the Raw Values when there are no Corrected Values', () => {
-    expect(mergeInvoiceValues(raw, {})).toEqual(raw)
-  })
+/** Applies corrections in order and returns the Corrected Values. */
+function correct(...edits: [string, unknown][]) {
+  return edits.reduce((acc, [path, value]) => applyCorrection(fields, raw, acc, path, value), {} as Record<string, unknown>)
+}
 
-  it('overlays Corrected Values by Field path, at every depth, without touching the Raw Values', () => {
+describe('applyCorrection', () => {
+  it('changes the shown value at every depth while the Raw Values stay untouched', () => {
     const before = structuredClone(raw)
-    const merged = mergeInvoiceValues(raw, { total: 1200, 'vendor.name': 'ACME', 'line_items.1.amount': 95 })
-    expect(merged.total).toBe(1200)
-    expect(merged.vendor).toEqual({ name: 'ACME', address: null, tax_id: 'DE1' })
-    expect(merged.line_items).toEqual([
+    const corrected = correct(['total', 1200], ['vendor.name', 'ACME'], ['line_items[1].amount', 95])
+    const shown = mergeValues(raw, corrected)
+
+    expect(shown.total).toBe(1200)
+    expect(shown.vendor).toEqual({ name: 'ACME', address: null, tax_id: 'DE1' })
+    expect(shown.line_items).toEqual([
       { description: 'Consulting', quantity: 2, unit_price: 500, amount: 1000, tax_rate: 19 },
       { description: 'Travel', quantity: 1, unit_price: 90, amount: 95, tax_rate: 19 },
     ])
     expect(raw).toEqual(before)
+    expect(correctedPaths(fields, raw, corrected).sort()).toEqual(['line_items[1].amount', 'total', 'vendor.name'])
   })
 
-  it('fills a group the model left out', () => {
-    const merged = mergeInvoiceValues({ vendor: null }, { 'vendor.name': 'Acme' })
-    expect(merged.vendor).toEqual({ name: 'Acme' })
+  it('keeps earlier cell edits of the same list', () => {
+    const corrected = correct(['line_items[0].amount', 1001], ['line_items[1].description', 'Train'])
+    expect(correctedPaths(fields, raw, corrected).sort()).toEqual(['line_items[0].amount', 'line_items[1].description'])
   })
-})
 
-describe('applyCorrection', () => {
-  it('records a corrected scalar', () => {
-    expect(applyCorrection(fields, raw, {}, 'invoice_number', 'INV-9')).toEqual({ invoice_number: 'INV-9' })
+  it('reverts a Field with undefined, leaving other edits', () => {
+    const corrected = correct(
+      ['total', 1200],
+      ['vendor.name', 'X'],
+      ['line_items[0].amount', 1],
+      ['vendor.name', undefined],
+      ['line_items[0].amount', undefined],
+    )
+    expect(corrected).toEqual({ total: 1200 })
   })
 
   it('drops the correction when the value equals the Raw Value again', () => {
-    expect(applyCorrection(fields, raw, { total: 1200 }, 'total', 1190)).toEqual({})
-  })
-
-  it('reverts a Field when the value is undefined', () => {
-    expect(applyCorrection(fields, raw, { total: 1200, 'vendor.name': 'X' }, 'total', undefined)).toEqual({
-      'vendor.name': 'X',
-    })
+    expect(correct(['total', 1200], ['total', 1190])).toEqual({})
+    expect(correct(['vendor.tax_id', 'X'], ['vendor.tax_id', 'DE1'])).toEqual({})
   })
 
   it('accepts null to clear a value', () => {
-    expect(applyCorrection(fields, raw, {}, 'vendor.tax_id', null)).toEqual({ 'vendor.tax_id': null })
+    const corrected = correct(['vendor.tax_id', null])
+    expect(mergeValues(raw, corrected).vendor).toMatchObject({ tax_id: null })
+    expect(correctedPaths(fields, raw, corrected)).toEqual(['vendor.tax_id'])
   })
 
   it.each([
     ['an unknown Field', 'nope', 'x'],
     ['a group as a whole', 'vendor', {}],
-    ['a list item that does not exist', 'line_items.5.amount', 1],
-    ['a non-numeric list index', 'line_items.a.amount', 1],
+    ['a list item that does not exist', 'line_items[5].amount', 1],
+    ['a list item without an index', 'line_items.amount', 1],
     ['a number Field given text', 'total', 'lots'],
     ['a date Field given a non-date', 'issue_date', '03/01/2026'],
     ['a text Field given a number', 'invoice_number', 12],

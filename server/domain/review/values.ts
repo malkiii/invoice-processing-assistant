@@ -1,16 +1,16 @@
 /**
- * Raw Values overlaid with Corrected Values (GLOSSARY "Corrected Values"). Corrected Values are
- * stored as a flat map from Field path to value, so each Field can be marked and reverted alone:
+ * Recording Corrected Values one Field at a time (spec "Review"). Corrected Values have the shape
+ * `mergeValues` (server/domain/template/values.ts) overlays on Raw Values: a corrected key
+ * replaces the raw one, a corrected group is overlaid key by key, a corrected list replaces the
+ * raw list whole. Raw Values are never mutated.
  *
+ * Fields are addressed by path, in the same form Checks report them:
  *   `total`                  a top-level scalar
  *   `vendor.name`            a scalar inside a group (`object`)
- *   `line_items.1.amount`    a scalar inside one item of a repeating group (`list`)
- *
- * Raw Values are never mutated. Everything that shows or exports values uses `mergeInvoiceValues`.
+ *   `line_items[1].amount`   a scalar inside one item of a repeating group (`list`)
  */
 import { isGroupField, type Field, type InvoiceValues } from '../template/fields'
-
-export type CorrectedValues = Record<string, unknown>
+import { mergeValues } from '../template/values'
 
 export class FieldCorrectionError extends Error {}
 
@@ -18,61 +18,40 @@ function isRecord(value: unknown): value is Record<string, unknown> {
   return typeof value === 'object' && value !== null && !Array.isArray(value)
 }
 
-/** The values a User sees and exports: Raw Values with every Corrected Value applied. */
-export function mergeInvoiceValues(raw: InvoiceValues, corrected: CorrectedValues): InvoiceValues {
-  const merged: InvoiceValues = structuredClone(raw)
-  for (const [path, value] of Object.entries(corrected)) {
-    const segments = path.split('.')
-    let target: Record<string, unknown> | unknown[] = merged
-    for (let i = 0; i < segments.length - 1; i++) {
-      const segment = segments[i]!
-      const nextIsIndex = /^\d+$/.test(segments[i + 1]!)
-      const container = target as Record<string, unknown>
-      let child = container[segment]
-      if (nextIsIndex ? !Array.isArray(child) : !isRecord(child)) {
-        child = nextIsIndex ? [] : {}
-        container[segment] = child
-      }
-      target = child as Record<string, unknown> | unknown[]
-    }
-    ;(target as Record<string, unknown>)[segments.at(-1)!] = structuredClone(value)
-  }
-  return merged
+function sameValue(a: unknown, b: unknown): boolean {
+  return JSON.stringify(a ?? null) === JSON.stringify(b ?? null)
 }
 
-/** The value at a Field path in a values object, or undefined when absent. */
-export function valueAtPath(values: InvoiceValues, path: string): unknown {
-  let current: unknown = values
-  for (const segment of path.split('.')) {
-    if (Array.isArray(current) && /^\d+$/.test(segment)) current = current[Number(segment)]
-    else if (isRecord(current)) current = current[segment]
-    else return undefined
-  }
-  return current
-}
+type ParsedPath =
+  | { kind: 'top'; field: Field; key: string }
+  | { kind: 'group'; field: Field; key: string; child: string }
+  | { kind: 'list'; field: Field; key: string; index: number; child: string }
 
-/** Finds the scalar Field a path points at, or throws when the path does not name one. */
-export function fieldAtPath(fields: Field[], raw: InvoiceValues, path: string): Field {
-  const [key, second, third, ...rest] = path.split('.')
-  const field = fields.find((f) => f.key === key)
-  if (!field) throw new FieldCorrectionError(`Unknown Field “${path}”.`)
-  if (!isGroupField(field)) {
-    if (second !== undefined) throw new FieldCorrectionError(`Unknown Field “${path}”.`)
-    return field
+const PATH = /^([a-z][a-z0-9_]*)(?:\[(\d+)\])?(?:\.([a-z][a-z0-9_]*))?$/
+
+/** Resolves a path to the scalar Field it names, given the current (merged) values. */
+function parsePath(fields: Field[], merged: InvoiceValues, path: string): ParsedPath {
+  const unknown = () => new FieldCorrectionError(`Unknown Field “${path}”.`)
+  const match = PATH.exec(path)
+  if (!match) throw unknown()
+  const [, key, index, childKey] = match
+  const top = fields.find((f) => f.key === key)
+  if (!top) throw unknown()
+  if (!isGroupField(top)) {
+    if (index !== undefined || childKey !== undefined) throw unknown()
+    return { kind: 'top', field: top, key: key! }
   }
-  let childKey = second
-  if (field.type === 'list') {
-    const items = raw[field.key]
-    if (second === undefined || !/^\d+$/.test(second) || !Array.isArray(items) || Number(second) >= items.length) {
-      throw new FieldCorrectionError(`“${path}” is not an existing ${field.label} item.`)
-    }
-    childKey = third
-  } else if (third !== undefined) {
-    throw new FieldCorrectionError(`Unknown Field “${path}”.`)
+  const child = top.fields.find((f) => f.key === childKey)
+  if (!child || isGroupField(child)) throw unknown()
+  if (top.type === 'object') {
+    if (index !== undefined) throw unknown()
+    return { kind: 'group', field: child, key: key!, child: childKey! }
   }
-  const child = field.fields.find((f) => f.key === childKey)
-  if (!child || isGroupField(child) || rest.length > 0) throw new FieldCorrectionError(`Unknown Field “${path}”.`)
-  return child
+  const items = merged[key!]
+  if (index === undefined || !Array.isArray(items) || Number(index) >= items.length) {
+    throw new FieldCorrectionError(`“${path}” is not an existing ${top.label} item.`)
+  }
+  return { kind: 'list', field: child, key: key!, index: Number(index), child: childKey! }
 }
 
 const ISO_DATE = /^\d{4}-\d{2}-\d{2}$/
@@ -111,29 +90,77 @@ function assertValueFits(field: Field, value: unknown, path: string) {
   }
 }
 
-function sameValue(a: unknown, b: unknown): boolean {
-  return JSON.stringify(a ?? null) === JSON.stringify(b ?? null)
-}
-
 /**
  * Returns new Corrected Values with the Field at `path` set to `value`. `undefined` reverts the
- * Field to its Raw Value, and so does a value equal to the Raw Value. Throws FieldCorrectionError
+ * Field to its Raw Value; a value equal to the Raw Value does the same. Throws FieldCorrectionError
  * when the path is not a scalar Field of the Template Snapshot or the value does not fit its type.
  */
 export function applyCorrection(
   fields: Field[],
   raw: InvoiceValues,
-  corrected: CorrectedValues,
+  corrected: InvoiceValues,
   path: string,
   value: unknown,
-): CorrectedValues {
-  const field = fieldAtPath(fields, raw, path)
-  const next = { ...corrected }
-  if (value === undefined || sameValue(value, valueAtPath(raw, path))) {
-    delete next[path]
+): InvoiceValues {
+  const target = parsePath(fields, mergeValues(raw, corrected), path)
+  if (value !== undefined) assertValueFits(target.field, value, path)
+  const next: InvoiceValues = structuredClone(corrected)
+
+  if (target.kind === 'top') {
+    if (value === undefined || sameValue(value, raw[target.key])) delete next[target.key]
+    else next[target.key] = value
     return next
   }
-  assertValueFits(field, value, path)
-  next[path] = value
+
+  if (target.kind === 'group') {
+    const rawGroup = isRecord(raw[target.key]) ? (raw[target.key] as Record<string, unknown>) : {}
+    const group = isRecord(next[target.key]) ? { ...(next[target.key] as Record<string, unknown>) } : {}
+    if (value === undefined || sameValue(value, rawGroup[target.child])) delete group[target.child]
+    else group[target.child] = value
+    if (Object.keys(group).length === 0) delete next[target.key]
+    else next[target.key] = group
+    return next
+  }
+
+  // A list is corrected as a whole: start from the current list and change one cell.
+  const rawList = Array.isArray(raw[target.key]) ? (raw[target.key] as unknown[]) : []
+  const list = structuredClone(
+    (Array.isArray(next[target.key]) ? next[target.key] : rawList) as unknown[],
+  ).map((item) => (isRecord(item) ? item : {}))
+  const rawItem = isRecord(rawList[target.index]) ? (rawList[target.index] as Record<string, unknown>) : {}
+  list[target.index]![target.child] = value === undefined ? rawItem[target.child] : value
+  if (sameValue(list, rawList)) delete next[target.key]
+  else next[target.key] = list
   return next
+}
+
+/** The paths of every scalar Field whose shown value differs from its Raw Value (marked as edited). */
+export function correctedPaths(fields: Field[], raw: InvoiceValues, corrected: InvoiceValues): string[] {
+  const paths: string[] = []
+  for (const field of fields) {
+    if (!(field.key in corrected)) continue
+    const value = corrected[field.key]
+    if (!isGroupField(field)) {
+      if (!sameValue(value, raw[field.key])) paths.push(field.key)
+      continue
+    }
+    if (field.type === 'object') {
+      const rawGroup = isRecord(raw[field.key]) ? (raw[field.key] as Record<string, unknown>) : {}
+      const group = isRecord(value) ? value : {}
+      for (const child of field.fields) {
+        if (child.key in group && !sameValue(group[child.key], rawGroup[child.key])) paths.push(`${field.key}.${child.key}`)
+      }
+      continue
+    }
+    const rawList = Array.isArray(raw[field.key]) ? (raw[field.key] as unknown[]) : []
+    const list = Array.isArray(value) ? value : []
+    list.forEach((item, index) => {
+      const rawItem = isRecord(rawList[index]) ? (rawList[index] as Record<string, unknown>) : {}
+      const cur = isRecord(item) ? item : {}
+      for (const child of field.fields) {
+        if (!sameValue(cur[child.key], rawItem[child.key])) paths.push(`${field.key}[${index}].${child.key}`)
+      }
+    })
+  }
+  return paths
 }
