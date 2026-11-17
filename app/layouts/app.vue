@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { Download, FileText, LayoutDashboard, Layers, LogOut, Moon, Settings, ShieldCheck, Sun, Upload, UserRound } from '@lucide/vue'
+import { Download, FileText, LayoutDashboard, Layers, LayoutTemplate, LogOut, Moon, Settings, ShieldCheck, Sun, Upload, UserRound } from '@lucide/vue'
 import { authClient } from '~/lib/auth-client'
 import { Button } from '@/components/ui/button'
 import { Sheet, SheetContent, SheetDescription, SheetHeader, SheetTitle } from '@/components/ui/sheet'
@@ -14,6 +14,7 @@ const nav = computed(() => [
   { label: 'Intake', to: '/app/intake', icon: Upload, exact: false },
   { label: 'Batches', to: '/app/batches', icon: Layers, exact: false },
   { label: 'Documents', to: '/app/documents', icon: FileText, exact: false },
+  { label: 'Templates', to: '/app/templates', icon: LayoutTemplate, exact: false },
   { label: 'Settings', to: '/app/settings/profile', icon: Settings, exact: false },
   ...(user.value?.role === 'admin' ? [{ label: 'Admin', to: '/admin', icon: ShieldCheck, exact: false }] : []),
 ])

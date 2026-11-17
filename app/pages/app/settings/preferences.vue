@@ -28,10 +28,12 @@ const selectClass =
 const { theme } = useTheme()
 const { data: prefs } = await useFetch<Preferences>('/api/preferences')
 const { data: connections } = await useFetch<Connection[]>('/api/providers', { default: () => [] })
+const { data: templates } = await useFetch<TemplateDto[]>('/api/templates', { default: () => [] })
 
 const form = reactive({
   defaultConnectionId: prefs.value?.defaultConnectionId ?? '',
   defaultModel: prefs.value?.defaultModel ?? '',
+  defaultTemplateId: prefs.value?.defaultTemplateId ?? '',
   theme: prefs.value?.theme ?? theme.value,
   autoDelete: prefs.value?.autoDeleteAfterDays != null,
   autoDeleteAfterDays: prefs.value?.autoDeleteAfterDays ?? 30,
@@ -62,6 +64,7 @@ async function save() {
       body: {
         defaultConnectionId: form.defaultConnectionId || null,
         defaultModel: form.defaultModel || null,
+        defaultTemplateId: form.defaultTemplateId || null,
         theme: form.theme,
         autoDeleteAfterDays: form.autoDelete ? Number(form.autoDeleteAfterDays) : null,
       },
@@ -114,9 +117,13 @@ async function save() {
           </div>
           <div class="grid gap-2">
             <Label for="template">Template</Label>
-            <select id="template" :class="selectClass" disabled>
-              <option>Default Template</option>
+            <select id="template" v-model="form.defaultTemplateId" :class="selectClass">
+              <option value="">Built-in default</option>
+              <option v-for="t in templates.filter((t) => !t.builtIn)" :key="t.id" :value="t.id">{{ t.name }}</option>
             </select>
+            <p class="text-xs text-muted-foreground">
+              <NuxtLink to="/app/templates" class="underline">Manage Templates</NuxtLink>
+            </p>
           </div>
         </CardContent>
       </Card>
