@@ -1,6 +1,8 @@
 import {
   CreateBucketCommand,
   DeleteObjectCommand,
+  DeleteObjectsCommand,
+  ListObjectsV2Command,
   GetObjectCommand,
   HeadBucketCommand,
   HeadObjectCommand,
@@ -42,6 +44,10 @@ export interface ObjectStorage {
   write(key: string, bytes: Uint8Array, contentType: string): Promise<void>
   /** Deletes the object; deleting a missing object is not an error. */
   delete(key: string): Promise<void>
+  /** Deletes every object whose key starts with `prefix`. Idempotent. */
+  deletePrefix(prefix: string): Promise<void>
+  /** Resolves when the bucket is reachable with these credentials; rejects otherwise. */
+  check(): Promise<void>
   /** Creates the bucket if it does not exist yet. */
   ensureBucket(): Promise<void>
 }
@@ -126,6 +132,26 @@ export function createS3Storage(config: StorageConfig): ObjectStorage {
 
     async delete(key) {
       await s3.send(new DeleteObjectCommand({ Bucket, Key: key }))
+    },
+
+    async deletePrefix(prefix) {
+      if (!prefix) throw new RangeError('Refusing to delete with an empty prefix.')
+      let ContinuationToken: string | undefined
+      do {
+        const page = await s3.send(new ListObjectsV2Command({ Bucket, Prefix: prefix, ContinuationToken }))
+        const keys = (page.Contents ?? []).flatMap((o) => (o.Key ? [{ Key: o.Key }] : []))
+        if (keys.length > 0) {
+          const result = await s3.send(new DeleteObjectsCommand({ Bucket, Delete: { Objects: keys, Quiet: true } }))
+          if (result.Errors?.length) {
+            throw new Error(`Could not delete ${result.Errors.length} object(s) under ${prefix}: ${result.Errors[0]!.Message}`)
+          }
+        }
+        ContinuationToken = page.IsTruncated ? page.NextContinuationToken : undefined
+      } while (ContinuationToken)
+    },
+
+    async check() {
+      await s3.send(new HeadBucketCommand({ Bucket }))
     },
 
     async ensureBucket() {

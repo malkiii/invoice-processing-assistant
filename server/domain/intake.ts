@@ -7,6 +7,7 @@ import type { DocumentRow } from './document-library'
 import type { DocumentStatus } from './documents'
 import type { ExtractionQueue } from './extraction-queue'
 import type { ObjectStorage, PresignedUpload } from './storage'
+import { storageKeyFor } from './storage-keys'
 
 /** A file the browser is about to upload, as it describes it. Its size is re-checked after upload. */
 export interface UploadRequest {
@@ -49,9 +50,6 @@ export class DocumentNotFoundError extends Error {
 
 export const MAX_FILES_PER_BATCH = 1000
 
-export function storageKeyFor(userId: string, documentId: string): string {
-  return `users/${userId}/documents/${documentId}`
-}
 
 export function createIntake(deps: {
   db: Database
