@@ -6,12 +6,14 @@ import { startWorker } from '../../server/worker/start'
 import { createAuth, type Auth } from '../../server/lib/auth'
 import { readAppConfig } from '../../server/lib/config'
 import type { Mail, Mailer } from '../../server/lib/mailer'
+import { createProviderConnections, type ProviderConnections } from '../../server/lib/provider-connections'
 import { startTestDatabase, type TestDatabase } from './support/database'
 
 let testDb: TestDatabase
 let auth: Auth
 let admin: AdminService
 let adminId: string
+let connections: ProviderConnections
 const sent: Mail[] = []
 const mailer: Mailer = { send: async (mail) => void sent.push(mail) }
 
@@ -44,6 +46,7 @@ beforeAll(async () => {
       if (storageDown) throw new Error('bucket unreachable')
     },
   })
+  connections = createProviderConnections({ db: testDb.db, encryptionKey: config.encryptionKey })
   adminId = (await signUp('admin@example.com')).user.id
 })
 
@@ -161,6 +164,41 @@ describe('users', () => {
 
   it('reports an unknown User as not found', async () => {
     await expect(admin.deleteUser({ userId: 'nope', actorId: adminId })).rejects.toThrow(/not found/)
+  })
+})
+
+describe("the Admin cannot see Users' data", () => {
+  it('never returns Provider Connection data from any admin read', async () => {
+    const { user } = await signUp('private@example.com')
+    const connection = await connections.create(user.id, {
+      kind: 'openai',
+      name: 'zz-private-connection-name',
+      apiKey: 'sk-zzprivatekey0000000000000000000000',
+      defaultModel: 'zz-private-model',
+    })
+    await admin.inviteUser({ email: 'pending@example.com', invitedBy: adminId })
+
+    const everything = JSON.stringify([
+      await admin.listUsers(),
+      await admin.listInvites(),
+      await admin.getSettings(),
+      await admin.getHealth(),
+    ])
+
+    for (const secret of [connection.id, connection.name, connection.apiKeyHint!, 'zzprivatekey', 'zz-private-model']) {
+      expect(everything).not.toContain(secret)
+    }
+    // The User themselves is listed, so the check above is meaningful.
+    expect(everything).toContain('private@example.com')
+  })
+
+  it('deleting a User also deletes their Provider Connections', async () => {
+    const { user } = await signUp('byok@example.com')
+    await connections.create(user.id, { kind: 'openai', name: 'mine', apiKey: 'sk-mine00000000000000000000000000' })
+
+    await admin.deleteUser({ userId: user.id, actorId: adminId })
+
+    expect(await connections.list(user.id)).toEqual([])
   })
 })
 

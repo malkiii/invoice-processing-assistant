@@ -12,8 +12,15 @@
     {
       "idx": 1,
       "version": "7",
-      "when": 1794927981495,
-      "tag": "0001_admin",
+      "when": 1794927903286,
+      "tag": "0001_provider_connections",
+      "breakpoints": true
+    },
+    {
+      "idx": 2,
+      "version": "7",
+      "when": 1794928900805,
+      "tag": "0002_admin",
       "breakpoints": true
     }
   ]
