@@ -3,21 +3,15 @@
  * with an explicit Provider Connection, model and Template; the runner then creates a new
  * Extraction and makes it current. Corrected Values stay with the earlier Extraction's Invoices.
  */
-import { and, asc, eq, inArray, isNull, ne, or, sql } from 'drizzle-orm'
+import { and, eq, inArray, ne, sql } from 'drizzle-orm'
 import type { Database } from '../../db/client'
-import { document, extraction, invoice, providerConnection, template } from '../../db/schema'
+import { document, extraction, invoice, providerConnection } from '../../db/schema'
 import { createChecksRunner } from '../checks/recheck'
 import { isUuid } from '../document-library'
 import type { ExtractionChoice, ExtractionQueue } from '../extraction-queue'
 import { findUsableTemplate } from '../templates'
 
 export class RerunError extends Error {}
-
-export interface TemplateChoice {
-  id: string
-  name: string
-  builtIn: boolean
-}
 
 export function createReextraction(deps: { db: Database; queue: ExtractionQueue }) {
   const { db, queue } = deps
@@ -42,15 +36,6 @@ export function createReextraction(deps: { db: Database; queue: ExtractionQueue 
       return Boolean(row)
     },
 
-    /** The Templates the Re-run picker offers: the User's own plus the built-in default. */
-    async templateChoices(userId: string): Promise<TemplateChoice[]> {
-      const rows = await db
-        .select({ id: template.id, name: template.name, userId: template.userId })
-        .from(template)
-        .where(or(eq(template.userId, userId), isNull(template.userId)))
-        .orderBy(sql`${template.userId} is not null`, asc(template.name))
-      return rows.map(({ userId: owner, ...row }) => ({ ...row, builtIn: owner === null }))
-    },
 
     /** Queues the Document for a new Extraction. Throws RerunError when it cannot be re-run. */
     async rerun(userId: string, documentId: string, choice: ExtractionChoice): Promise<void> {
@@ -95,8 +80,17 @@ export function createReextraction(deps: { db: Database; queue: ExtractionQueue 
       try {
         await queue.enqueue(documentId, job)
       } catch (error) {
-        // Not queued after all: put the Document back so it can be re-run again.
-        await db.update(document).set({ status: 'extracted' }).where(eq(document.id, documentId))
+        // Not queued after all: put the Document back so it can be re-run again. It was
+        // `extracted` if it has an Extraction, otherwise `failed`.
+        const [any] = await db
+          .select({ id: extraction.id })
+          .from(extraction)
+          .where(eq(extraction.documentId, documentId))
+          .limit(1)
+        await db
+          .update(document)
+          .set({ status: any ? 'extracted' : 'failed' })
+          .where(eq(document.id, documentId))
         throw error
       }
     },

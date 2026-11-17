@@ -168,11 +168,4 @@ describe('Re-run', () => {
     await expect(reextraction.rerun(alice, doc.id, {})).rejects.toThrow(/already/)
   })
 
-  it('lists the User’s Templates and the built-in default for the picker', async () => {
-    await testDb.db.insert(template).values({ userId: alice, name: 'Alice’s', fields: DEFAULT_TEMPLATE.fields })
-    const names = (await reextraction.templateChoices(alice)).map((t) => t.name)
-    expect(names).toContain(DEFAULT_TEMPLATE.name)
-    expect(names).toContain('Alice’s')
-    expect(names).not.toContain('Bob’s')
-  })
 })
