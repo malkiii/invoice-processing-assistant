@@ -16,10 +16,17 @@ describe('decideSignUp', () => {
     })
   })
 
-  it('blocks later sign-ups when the policy is invite-only', () => {
-    expect(decideSignUp({ existingUserCount: 1, policy: 'invite-only' })).toEqual({
+  it('blocks later sign-ups without an invite when the policy is invite-only', () => {
+    expect(decideSignUp({ existingUserCount: 1, policy: 'invite-only', hasInvite: false })).toEqual({
       allowed: false,
       reason: 'Sign-up is invite-only on this instance.',
+    })
+  })
+
+  it('lets an invited User sign up as a regular user when the policy is invite-only', () => {
+    expect(decideSignUp({ existingUserCount: 1, policy: 'invite-only', hasInvite: true })).toEqual({
+      allowed: true,
+      role: 'user',
     })
   })
 })

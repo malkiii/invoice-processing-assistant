@@ -4,6 +4,7 @@ import { APIError } from 'better-auth/api'
 import { admin, twoFactor } from 'better-auth/plugins'
 import type { Database } from '../db/client'
 import { getInstanceSettings } from '../db/instance-settings'
+import { hasUsableInvite, markInviteAccepted } from '../db/invites'
 import * as schema from '../db/schema'
 import { decideSignUp } from '../domain/sign-up'
 import type { AppConfig } from './config'
@@ -56,17 +57,34 @@ export function createAuth(deps: { db: Database; config: AppConfig; mailer: Mail
         create: {
           // Enforces the sign-up policy for every sign-up path (email and OAuth)
           // and makes the first User the Admin.
-          before: async (user) => {
+          before: async (user, ctx) => {
             const existingUserCount = await db.$count(schema.user)
             const { signUpPolicy } = await getInstanceSettings(db)
-            const decision = decideSignUp({ existingUserCount, policy: signUpPolicy })
+            const isEmailSignUp = ctx?.path === '/sign-up/email'
+            const hasInvite =
+              signUpPolicy === 'invite-only' &&
+              (await hasUsableInvite(db, {
+                email: user.email,
+                token: isEmailSignUp ? inviteTokenFrom(ctx.body) : undefined,
+                requireToken: isEmailSignUp,
+              }))
+            const decision = decideSignUp({ existingUserCount, policy: signUpPolicy, hasInvite })
             if (!decision.allowed) throw new APIError('FORBIDDEN', { message: decision.reason })
             return { data: { ...user, role: decision.role } }
+          },
+          after: async (user) => {
+            await markInviteAccepted(db, user.email)
           },
         },
       },
     },
   })
+}
+
+/** Email sign-ups carry the invite link's token as `inviteToken` in the request body. */
+function inviteTokenFrom(body: unknown): string | undefined {
+  const token = (body as { inviteToken?: unknown } | undefined)?.inviteToken
+  return typeof token === 'string' && token ? token : undefined
 }
 
 export type Auth = ReturnType<typeof createAuth>

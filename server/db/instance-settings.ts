@@ -10,6 +10,7 @@ export async function getInstanceSettings(db: Database): Promise<InstanceSetting
       signUpPolicy: instanceSettings.signUpPolicy,
       maxDocumentBytes: instanceSettings.maxDocumentBytes,
       maxDocumentPages: instanceSettings.maxDocumentPages,
+      maxConcurrentDocumentsPerUser: instanceSettings.maxConcurrentDocumentsPerUser,
     })
     .from(instanceSettings)
     .where(eq(instanceSettings.id, 1))
