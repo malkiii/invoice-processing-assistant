@@ -24,6 +24,8 @@
     "test:e2e": "playwright test"
   },
   "dependencies": {
+    "@aws-sdk/client-s3": "^3.1170.0",
+    "@aws-sdk/s3-request-presigner": "^3.1170.0",
     "@fontsource-variable/geist": "^5.3.0",
     "@fontsource-variable/jetbrains-mono": "^5.3.0",
     "@lucide/vue": "^1.74.0",
@@ -34,8 +36,10 @@
     "clsx": "^2.1.1",
     "cn": "^0.5.2",
     "drizzle-orm": "^0.45.4",
+    "file-type": "^22.3.0",
     "nodemailer": "^10.6.0",
     "nuxt": "^4.6.4",
+    "pdf-lib": "^1.17.1",
     "pg": "^8.23.1",
     "pg-boss": "^12.38.2",
     "reka-ui": "^2.11.0",
