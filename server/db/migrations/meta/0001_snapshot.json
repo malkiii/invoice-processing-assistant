@@ -1,5 +1,5 @@
 {
-  "id": "5b5b17e2-65f0-4a50-ba8c-e4f1b97f651f",
+  "id": "faad910a-2d1c-4782-aadb-26dd7cb2060d",
   "prevId": "c3f5073e-fe62-41d9-a92b-da16da5dafd6",
   "version": "7",
   "dialect": "postgresql",
@@ -563,16 +563,15 @@
       },
       "isRLSEnabled": false
     },
-    "public.batch": {
-      "name": "batch",
+    "public.provider_connection": {
+      "name": "provider_connection",
       "schema": "",
       "columns": {
         "id": {
           "name": "id",
-          "type": "uuid",
+          "type": "text",
           "primaryKey": true,
-          "notNull": true,
-          "default": "gen_random_uuid()"
+          "notNull": true
         },
         "user_id": {
           "name": "user_id",
@@ -580,89 +579,8 @@
           "primaryKey": false,
           "notNull": true
         },
-        "source": {
-          "name": "source",
-          "type": "text",
-          "primaryKey": false,
-          "notNull": true
-        },
-        "created_at": {
-          "name": "created_at",
-          "type": "timestamp with time zone",
-          "primaryKey": false,
-          "notNull": true,
-          "default": "now()"
-        }
-      },
-      "indexes": {
-        "batch_user_id_created_at_idx": {
-          "name": "batch_user_id_created_at_idx",
-          "columns": [
-            {
-              "expression": "user_id",
-              "isExpression": false,
-              "asc": true,
-              "nulls": "last"
-            },
-            {
-              "expression": "created_at",
-              "isExpression": false,
-              "asc": true,
-              "nulls": "last"
-            }
-          ],
-          "isUnique": false,
-          "concurrently": false,
-          "method": "btree",
-          "with": {}
-        }
-      },
-      "foreignKeys": {
-        "batch_user_id_user_id_fk": {
-          "name": "batch_user_id_user_id_fk",
-          "tableFrom": "batch",
-          "tableTo": "user",
-          "columnsFrom": [
-            "user_id"
-          ],
-          "columnsTo": [
-            "id"
-          ],
-          "onDelete": "cascade",
-          "onUpdate": "no action"
-        }
-      },
-      "compositePrimaryKeys": {},
-      "uniqueConstraints": {},
-      "policies": {},
-      "checkConstraints": {},
-      "isRLSEnabled": false
-    },
-    "public.document": {
-      "name": "document",
-      "schema": "",
-      "columns": {
-        "id": {
-          "name": "id",
-          "type": "uuid",
-          "primaryKey": true,
-          "notNull": true,
-          "default": "gen_random_uuid()"
-        },
-        "user_id": {
-          "name": "user_id",
-          "type": "text",
-          "primaryKey": false,
-          "notNull": true
-        },
-        "batch_id": {
-          "name": "batch_id",
-          "type": "uuid",
-          "primaryKey": false,
-          "notNull": true
-        },
-        "source": {
-          "name": "source",
+        "kind": {
+          "name": "kind",
           "type": "text",
           "primaryKey": false,
           "notNull": true
@@ -673,33 +591,27 @@
           "primaryKey": false,
           "notNull": true
         },
-        "storage_key": {
-          "name": "storage_key",
+        "encrypted_api_key": {
+          "name": "encrypted_api_key",
           "type": "text",
           "primaryKey": false,
           "notNull": false
         },
-        "size_bytes": {
-          "name": "size_bytes",
-          "type": "bigint",
-          "primaryKey": false,
-          "notNull": false
-        },
-        "format": {
-          "name": "format",
+        "api_key_hint": {
+          "name": "api_key_hint",
           "type": "text",
           "primaryKey": false,
           "notNull": false
         },
-        "mime_type": {
-          "name": "mime_type",
+        "base_url": {
+          "name": "base_url",
           "type": "text",
           "primaryKey": false,
           "notNull": false
         },
-        "page_count": {
-          "name": "page_count",
-          "type": "integer",
+        "default_model": {
+          "name": "default_model",
+          "type": "text",
           "primaryKey": false,
           "notNull": false
         },
@@ -707,10 +619,11 @@
           "name": "status",
           "type": "text",
           "primaryKey": false,
-          "notNull": true
+          "notNull": true,
+          "default": "'ok'"
         },
-        "failure_reason": {
-          "name": "failure_reason",
+        "status_message": {
+          "name": "status_message",
           "type": "text",
           "primaryKey": false,
           "notNull": false
@@ -731,32 +644,11 @@
         }
       },
       "indexes": {
-        "document_user_id_created_at_idx": {
-          "name": "document_user_id_created_at_idx",
+        "provider_connection_user_id_idx": {
+          "name": "provider_connection_user_id_idx",
           "columns": [
             {
               "expression": "user_id",
-              "isExpression": false,
-              "asc": true,
-              "nulls": "last"
-            },
-            {
-              "expression": "created_at",
-              "isExpression": false,
-              "asc": true,
-              "nulls": "last"
-            }
-          ],
-          "isUnique": false,
-          "concurrently": false,
-          "method": "btree",
-          "with": {}
-        },
-        "document_batch_id_idx": {
-          "name": "document_batch_id_idx",
-          "columns": [
-            {
-              "expression": "batch_id",
               "isExpression": false,
               "asc": true,
               "nulls": "last"
@@ -769,25 +661,12 @@
         }
       },
       "foreignKeys": {
-        "document_user_id_user_id_fk": {
-          "name": "document_user_id_user_id_fk",
-          "tableFrom": "document",
+        "provider_connection_user_id_user_id_fk": {
+          "name": "provider_connection_user_id_user_id_fk",
+          "tableFrom": "provider_connection",
           "tableTo": "user",
           "columnsFrom": [
             "user_id"
-          ],
-          "columnsTo": [
-            "id"
-          ],
-          "onDelete": "cascade",
-          "onUpdate": "no action"
-        },
-        "document_batch_id_batch_id_fk": {
-          "name": "document_batch_id_batch_id_fk",
-          "tableFrom": "document",
-          "tableTo": "batch",
-          "columnsFrom": [
-            "batch_id"
           ],
           "columnsTo": [
             "id"
@@ -800,9 +679,190 @@
       "uniqueConstraints": {},
       "policies": {},
       "checkConstraints": {
-        "document_status": {
-          "name": "document_status",
-          "value": "\"document\".\"status\" in ('uploading', 'queued', 'processing', 'extracted', 'failed')"
+        "provider_connection_status": {
+          "name": "provider_connection_status",
+          "value": "\"provider_connection\".\"status\" in ('ok', 'broken')"
+        }
+      },
+      "isRLSEnabled": false
+    },
+    "public.provider_model_setting": {
+      "name": "provider_model_setting",
+      "schema": "",
+      "columns": {
+        "connection_id": {
+          "name": "connection_id",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "model_id": {
+          "name": "model_id",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "capability_override": {
+          "name": "capability_override",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "input_price_per_million": {
+          "name": "input_price_per_million",
+          "type": "double precision",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "output_price_per_million": {
+          "name": "output_price_per_million",
+          "type": "double precision",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "created_at": {
+          "name": "created_at",
+          "type": "timestamp with time zone",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "now()"
+        },
+        "updated_at": {
+          "name": "updated_at",
+          "type": "timestamp with time zone",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "now()"
+        }
+      },
+      "indexes": {},
+      "foreignKeys": {
+        "provider_model_setting_connection_id_provider_connection_id_fk": {
+          "name": "provider_model_setting_connection_id_provider_connection_id_fk",
+          "tableFrom": "provider_model_setting",
+          "tableTo": "provider_connection",
+          "columnsFrom": [
+            "connection_id"
+          ],
+          "columnsTo": [
+            "id"
+          ],
+          "onDelete": "cascade",
+          "onUpdate": "no action"
+        }
+      },
+      "compositePrimaryKeys": {
+        "provider_model_setting_connection_id_model_id_pk": {
+          "name": "provider_model_setting_connection_id_model_id_pk",
+          "columns": [
+            "connection_id",
+            "model_id"
+          ]
+        }
+      },
+      "uniqueConstraints": {},
+      "policies": {},
+      "checkConstraints": {
+        "provider_model_setting_capability": {
+          "name": "provider_model_setting_capability",
+          "value": "\"provider_model_setting\".\"capability_override\" is null or \"provider_model_setting\".\"capability_override\" in ('pdf', 'images', 'text')"
+        },
+        "provider_model_setting_prices_non_negative": {
+          "name": "provider_model_setting_prices_non_negative",
+          "value": "coalesce(\"provider_model_setting\".\"input_price_per_million\", 0) >= 0 and coalesce(\"provider_model_setting\".\"output_price_per_million\", 0) >= 0"
+        }
+      },
+      "isRLSEnabled": false
+    },
+    "public.user_preferences": {
+      "name": "user_preferences",
+      "schema": "",
+      "columns": {
+        "user_id": {
+          "name": "user_id",
+          "type": "text",
+          "primaryKey": true,
+          "notNull": true
+        },
+        "default_connection_id": {
+          "name": "default_connection_id",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "default_model": {
+          "name": "default_model",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "default_template_id": {
+          "name": "default_template_id",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "theme": {
+          "name": "theme",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "'noir'"
+        },
+        "auto_delete_after_days": {
+          "name": "auto_delete_after_days",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "updated_at": {
+          "name": "updated_at",
+          "type": "timestamp with time zone",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "now()"
+        }
+      },
+      "indexes": {},
+      "foreignKeys": {
+        "user_preferences_user_id_user_id_fk": {
+          "name": "user_preferences_user_id_user_id_fk",
+          "tableFrom": "user_preferences",
+          "tableTo": "user",
+          "columnsFrom": [
+            "user_id"
+          ],
+          "columnsTo": [
+            "id"
+          ],
+          "onDelete": "cascade",
+          "onUpdate": "no action"
+        },
+        "user_preferences_default_connection_id_provider_connection_id_fk": {
+          "name": "user_preferences_default_connection_id_provider_connection_id_fk",
+          "tableFrom": "user_preferences",
+          "tableTo": "provider_connection",
+          "columnsFrom": [
+            "default_connection_id"
+          ],
+          "columnsTo": [
+            "id"
+          ],
+          "onDelete": "set null",
+          "onUpdate": "no action"
+        }
+      },
+      "compositePrimaryKeys": {},
+      "uniqueConstraints": {},
+      "policies": {},
+      "checkConstraints": {
+        "user_preferences_theme": {
+          "name": "user_preferences_theme",
+          "value": "\"user_preferences\".\"theme\" in ('noir', 'day')"
+        },
+        "user_preferences_auto_delete_positive": {
+          "name": "user_preferences_auto_delete_positive",
+          "value": "\"user_preferences\".\"auto_delete_after_days\" is null or \"user_preferences\".\"auto_delete_after_days\" > 0"
         }
       },
       "isRLSEnabled": false

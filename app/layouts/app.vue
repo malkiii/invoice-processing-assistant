@@ -67,6 +67,7 @@ async function signOut() {
           <LogOut class="size-4" /> Sign out
         </Button>
       </header>
+      <ProviderBrokenBanner />
 
       <main class="flex-1 p-6">
         <slot />
