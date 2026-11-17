@@ -3,6 +3,8 @@
 const items = [
   { label: 'Profile', to: '/app/settings/profile' },
   { label: 'Security', to: '/app/settings/security' },
+  { label: 'Providers', to: '/app/settings/providers' },
+  { label: 'Preferences', to: '/app/settings/preferences' },
 ]
 </script>
 
