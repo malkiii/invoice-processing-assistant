@@ -15,5 +15,5 @@ export const DEFAULT_INSTANCE_SETTINGS: InstanceSettings = {
   signUpPolicy: 'open',
   maxDocumentBytes: 25 * 1024 * 1024,
   maxDocumentPages: 30,
-  maxConcurrentDocumentsPerUser: 2,
+  maxConcurrentDocumentsPerUser: 3,
 }

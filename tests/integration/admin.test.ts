@@ -238,7 +238,7 @@ describe('system health', () => {
 
 describe('instance settings', () => {
   it('stores Document limits and per-User concurrency', async () => {
-    expect((await admin.getSettings()).maxConcurrentDocumentsPerUser).toBe(2)
+    expect((await admin.getSettings()).maxConcurrentDocumentsPerUser).toBe(3)
     const saved = await admin.updateSettings({
       maxDocumentBytes: 10 * 1024 * 1024,
       maxDocumentPages: 12,

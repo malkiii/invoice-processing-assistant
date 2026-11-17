@@ -1,5 +1,6 @@
 import { and, eq } from 'drizzle-orm'
 import type { Database } from './client'
+import { findUsableTemplate } from '../domain/templates'
 import { providerConnection, userPreferences } from './schema'
 
 export type ThemeName = 'noir' | 'day'
@@ -8,7 +9,7 @@ export type ThemeName = 'noir' | 'day'
 export interface UserPreferences {
   defaultConnectionId: string | null
   defaultModel: string | null
-  /** Null until Templates exist (issue 05) or the User picks one; null means the built-in default Template. */
+  /** Null until the User picks one; null means the built-in default Template. */
   defaultTemplateId: string | null
   theme: ThemeName
   /** Null keeps Documents forever. */
@@ -49,6 +50,9 @@ export async function updateUserPreferences(
       .from(providerConnection)
       .where(and(eq(providerConnection.id, changes.defaultConnectionId), eq(providerConnection.userId, userId)))
     if (!owned) throw new UserPreferencesInputError('Unknown Provider Connection')
+  }
+  if (changes.defaultTemplateId && !(await findUsableTemplate(db, userId, changes.defaultTemplateId))) {
+    throw new UserPreferencesInputError('Unknown Template')
   }
   if (changes.autoDeleteAfterDays != null && !(Number.isInteger(changes.autoDeleteAfterDays) && changes.autoDeleteAfterDays > 0)) {
     throw new UserPreferencesInputError('Auto-delete must be a whole number of days, at least 1')
