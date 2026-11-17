@@ -9,13 +9,14 @@ const { theme, toggle } = useTheme()
 const downloadsOpen = ref(false)
 
 // Later features add their entries here (Intake, Batches, Documents, Invoices, Templates).
-const nav = [
+const nav = computed(() => [
   { label: 'Dashboard', to: '/app', icon: LayoutDashboard, exact: true },
   { label: 'Intake', to: '/app/intake', icon: Upload, exact: false },
   { label: 'Batches', to: '/app/batches', icon: Layers, exact: false },
   { label: 'Documents', to: '/app/documents', icon: FileText, exact: false },
   { label: 'Settings', to: '/app/settings/profile', icon: Settings, exact: false },
-]
+  ...(user.value?.role === 'admin' ? [{ label: 'Admin', to: '/admin', icon: ShieldCheck, exact: false }] : []),
+])
 
 async function signOut() {
   await authClient.signOut()

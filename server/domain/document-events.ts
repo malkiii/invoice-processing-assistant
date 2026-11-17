@@ -3,7 +3,7 @@ import type { DocumentStatusEvent } from './documents'
 
 /**
  * Postgres channel a database trigger notifies on every Document insert and status change
- * (migration `0003_document_status_notify`), so changes made by the app and the worker alike
+ * (migration `0004_document_status_notify`), so changes made by the app and the worker alike
  * reach the UI without either one publishing explicitly.
  */
 export const DOCUMENT_STATUS_CHANNEL = 'document_status'

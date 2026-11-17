@@ -1,6 +1,9 @@
 import { PgBoss } from 'pg-boss'
 import { afterAll, beforeAll, describe, expect, it } from 'vitest'
+import { createAdminService } from '../../server/admin/service'
 import { updateInstanceSettings } from '../../server/db/instance-settings'
+import { storageKeyFor } from '../../server/domain/storage-keys'
+import { createStorageUserFiles } from '../../server/domain/storage-user-files'
 import { user } from '../../server/db/schema'
 import { createExtractionQueue, EXTRACT_DOCUMENT_QUEUE } from '../../server/domain/extraction-queue'
 import { createDocumentLibrary, type DocumentLibrary } from '../../server/domain/document-library'
@@ -153,6 +156,33 @@ describe('confirming uploads', () => {
     expect(await library.getDocument(bob, doc!.id)).toBeNull()
     expect(await library.deleteDocument(bob, doc!.id)).toBe(false)
     expect(await library.getDocument(alice, doc!.id)).not.toBeNull()
+  })
+})
+
+describe('deleting a User (admin)', () => {
+  it("deletes the User's stored files and Documents, and reports storage as healthy", async () => {
+    const carol = 'user-carol'
+    await testDb.db.insert(user).values({ id: carol, name: 'Carol', email: 'carol@example.com' })
+    const { documents: [doc] } = await intake.startUploadBatch(carol, [{ name: 'c.png', size: PNG.length }])
+    await upload(doc!, PNG)
+    await intake.confirmUpload(carol, doc!.id)
+    const { documents: [alicesDoc] } = await intake.startUploadBatch(alice, [{ name: 'a.png', size: PNG.length }])
+    await upload(alicesDoc!, PNG)
+    await intake.confirmUpload(alice, alicesDoc!.id)
+
+    const admin = createAdminService({
+      db: testDb.db,
+      mailer: null,
+      appUrl: 'http://localhost:3000',
+      userFiles: createStorageUserFiles(testStorage.storage),
+      checkStorage: () => testStorage.storage.check(),
+    })
+    await admin.deleteUser({ userId: carol, actorId: alice })
+
+    expect(await testStorage.storage.size(storageKeyFor(carol, doc!.id))).toBeNull()
+    expect(await library.getDocument(carol, doc!.id)).toBeNull()
+    expect(await testStorage.storage.size(storageKeyFor(alice, alicesDoc!.id))).toBe(PNG.length)
+    expect((await admin.getHealth()).storage).toEqual({ status: 'ok' })
   })
 })
 
