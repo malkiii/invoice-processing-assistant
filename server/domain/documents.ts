@@ -1,9 +1,10 @@
 /**
- * Document lifecycle: `uploading → queued → processing → extracted | failed`.
+ * Document lifecycle: `uploading | fetching → queued → processing → extracted | failed`.
  * `uploading` covers the window between a presigned upload URL being issued and the server
- * confirming the bytes; every other status is from the spec.
+ * confirming the bytes; `fetching` is the same window for a URL the worker downloads.
+ * Every other status is from the spec.
  */
-export type DocumentStatus = 'uploading' | 'queued' | 'processing' | 'extracted' | 'failed'
+export type DocumentStatus = 'uploading' | 'fetching' | 'queued' | 'processing' | 'extracted' | 'failed'
 
 export type DocumentSource = 'upload' | 'url' | 'google-drive' | 'dropbox'
 

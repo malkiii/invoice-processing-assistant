@@ -35,7 +35,8 @@ const UNSUPPORTED = 'Unsupported file type. Accepted formats: PDF, DOCX, PNG, JP
 const KB = 1024
 const MB = 1024 * KB
 
-function formatLimit(bytes: number): string {
+/** A size limit for messages: KB below 1 MB, else MB. */
+export function formatLimit(bytes: number): string {
   if (bytes < MB) return `${Math.floor(bytes / KB)} KB`
   const mb = bytes / MB
   return Number.isInteger(mb) ? `${mb} MB` : `${mb.toFixed(1)} MB`

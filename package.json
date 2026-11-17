@@ -45,6 +45,7 @@
     "cn": "^0.5.2",
     "drizzle-orm": "^0.45.4",
     "file-type": "^22.3.0",
+    "ipaddr.js": "^2.5.0",
     "linkedom": "^0.18.15",
     "mammoth": "^1.13.0",
     "nodemailer": "^10.6.0",
