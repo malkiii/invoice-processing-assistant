@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { FilePlus, FolderPlus, UploadCloud } from '@lucide/vue'
+import { FilePlus, FolderPlus, Link as LinkIcon, UploadCloud } from '@lucide/vue'
 import { Button } from '@/components/ui/button'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
 
@@ -22,6 +22,34 @@ async function onPick(e: Event) {
   input.value = ''
 }
 
+// --- URL intake ---
+interface StartedUrlBatch {
+  batchId: string
+  documents: { id: string; name: string; status: string; failureReason: string | null }[]
+}
+const urlText = ref('')
+const urlBusy = ref(false)
+const urlError = ref<string | null>(null)
+const urlBatch = ref<StartedUrlBatch | null>(null)
+const urlLines = computed(() => urlText.value.split(/\r?\n/).map((l) => l.trim()).filter(Boolean))
+
+async function submitUrls() {
+  if (urlLines.value.length === 0) return
+  urlBusy.value = true
+  urlError.value = null
+  try {
+    urlBatch.value = await $fetch<StartedUrlBatch>('/api/url-batches', {
+      method: 'POST',
+      body: { urls: urlLines.value },
+    })
+    urlText.value = ''
+  } catch (err: any) {
+    urlError.value = err?.data?.statusMessage ?? err?.message ?? 'Could not import the URLs.'
+  } finally {
+    urlBusy.value = false
+  }
+}
+
 const summary = computed(() => {
   const done = items.value.filter((i) => i.phase === 'done')
   return {
@@ -37,7 +65,8 @@ const summary = computed(() => {
     <div>
       <h1 class="text-2xl font-semibold">Intake</h1>
       <p class="text-sm text-muted-foreground">
-        Add Documents from your computer: PDF, DOCX, PNG, JPEG, WEBP or HTML. Each drop or pick creates one Batch.
+        Add Documents from your computer or from URLs: PDF, DOCX, PNG, JPEG, WEBP or HTML. Each drop, pick or URL
+        submission creates one Batch.
       </p>
     </div>
 
@@ -69,11 +98,11 @@ const summary = computed(() => {
       <CardHeader>
         <CardTitle>Uploads</CardTitle>
         <CardDescription>
-          <span class="num">{{ summary.done }}</span> of <span class="num">{{ items.length }}</span> checked ·
-          <span class="num">{{ summary.queued }}</span> queued ·
+          <span class="num">{{ summary.done }}</span> of <span class="num">{{ items.length }}</span> checked Ã‚Â·
+          <span class="num">{{ summary.queued }}</span> queued Ã‚Â·
           <span class="num">{{ summary.failed }}</span> failed
           <template v-if="batchId">
-            · <NuxtLink :to="`/app/batches/${batchId}`" class="underline">View Batch</NuxtLink>
+            Ã‚Â· <NuxtLink :to="`/app/batches/${batchId}`" class="underline">View Batch</NuxtLink>
           </template>
         </CardDescription>
       </CardHeader>
@@ -84,13 +113,52 @@ const summary = computed(() => {
               <span class="min-w-0 flex-1 truncate" :title="item.name">{{ item.name }}</span>
               <span class="num text-xs text-muted-foreground">{{ formatBytes(item.size) }}</span>
               <span v-if="item.phase === 'uploading'" class="num w-10 text-right text-xs">{{ Math.round(item.progress * 100) }}%</span>
-              <span v-else-if="item.phase === 'checking'" class="text-xs text-muted-foreground">checking…</span>
+              <span v-else-if="item.phase === 'checking'" class="text-xs text-muted-foreground">checkingÃ¢â‚¬Â¦</span>
               <DocumentStatusBadge v-if="item.phase === 'done'" :status="item.status" :reason="item.failureReason" />
             </div>
             <div v-if="item.phase === 'uploading' || item.phase === 'waiting'" class="h-1 overflow-hidden rounded bg-muted">
               <div class="h-full bg-primary transition-[width]" :style="{ width: `${item.progress * 100}%` }" />
             </div>
             <p v-if="item.failureReason" class="text-xs text-destructive">{{ item.failureReason }}</p>
+          </li>
+        </ul>
+      </CardContent>
+    </Card>
+
+    <Card>
+      <CardHeader>
+        <CardTitle class="flex items-center gap-2"><LinkIcon class="size-4" /> Import from URLs</CardTitle>
+        <CardDescription>
+          One https:// URL per line. Each URL is downloaded by the server; a web page is kept as an HTML Document
+          and its links are not followed. Each submission creates one Batch.
+        </CardDescription>
+      </CardHeader>
+      <CardContent class="grid gap-3">
+        <textarea
+          v-model="urlText"
+          rows="5"
+          spellcheck="false"
+          placeholder="https://example.com/invoices/2026-03.pdf"
+          class="w-full rounded-md border border-input bg-transparent px-3 py-2 font-mono text-sm shadow-xs outline-none focus-visible:border-ring focus-visible:ring-[3px] focus-visible:ring-ring/50"
+          data-testid="url-input"
+        />
+        <div class="flex items-center gap-3">
+          <Button :disabled="urlBusy || urlLines.length === 0" data-testid="url-submit" @click="submitUrls">
+            Import <span v-if="urlLines.length" class="num">{{ urlLines.length }}</span>
+            {{ urlLines.length === 1 ? 'URL' : 'URLs' }}
+          </Button>
+          <NuxtLink v-if="urlBatch" :to="`/app/batches/${urlBatch.batchId}`" class="text-sm underline">
+            View Batch
+          </NuxtLink>
+        </div>
+        <FormError :message="urlError" />
+        <ul v-if="urlBatch" class="grid gap-2">
+          <li v-for="d in urlBatch.documents" :key="d.id" class="grid gap-1" data-testid="url-item">
+            <div class="flex items-center gap-3 text-sm">
+              <span class="min-w-0 flex-1 truncate font-mono" :title="d.name">{{ d.name }}</span>
+              <DocumentStatusBadge :status="d.status" :reason="d.failureReason" />
+            </div>
+            <p v-if="d.failureReason" class="text-xs text-destructive">{{ d.failureReason }}</p>
           </li>
         </ul>
       </CardContent>
