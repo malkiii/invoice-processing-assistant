@@ -1,4 +1,5 @@
 import { listExtractions, listInvoices } from '../../../domain/extractions'
+import { mergeValues } from '../../../domain/template/values'
 
 /** The Document, a short-lived URL for viewing its file, its Extraction history and current Invoices. */
 export default defineEventHandler(async (event) => {
@@ -11,6 +12,7 @@ export default defineEventHandler(async (event) => {
   const history = await listExtractions(useDb(), session.user.id, id)
   const extractions = history.map(({ templateSnapshot: _snapshot, ...summary }) => summary)
   const current = history.find((e) => e.isCurrent)
-  const invoices = current ? await listInvoices(useDb(), session.user.id, current.id) : []
+  const rows = current ? await listInvoices(useDb(), session.user.id, current.id) : []
+  const invoices = rows.map((inv) => ({ ...inv, values: mergeValues(inv.rawValues, inv.correctedValues) }))
   return { ...found, fileUrl, extractions, invoices }
 })

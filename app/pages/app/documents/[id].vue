@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { Trash2 } from '@lucide/vue'
+import { RefreshCw, Trash2 } from '@lucide/vue'
 import { Button } from '@/components/ui/button'
 
 definePageMeta({ layout: 'app', middleware: 'auth' })
@@ -32,6 +32,18 @@ function invoiceTitle(values: Record<string, unknown>) {
   return [values.invoice_number, vendor].filter(Boolean).join(' · ') || 'Invoice'
 }
 
+const rerunOpen = ref(false)
+const switching = ref('')
+async function makeCurrent(extractionId: string) {
+  switching.value = extractionId
+  try {
+    await $fetch(`/api/documents/${id}/current-extraction`, { method: 'PUT', body: { extractionId } })
+    await refresh()
+  } finally {
+    switching.value = ''
+  }
+}
+
 const deleting = ref(false)
 async function remove() {
   if (!doc.value || !confirm(`Delete “${doc.value.name}” and its file? This cannot be undone.`)) return
@@ -59,32 +71,36 @@ async function remove() {
         </div>
         <p v-if="doc.failureReason" class="mt-2 text-sm text-destructive">{{ doc.failureReason }}</p>
       </div>
-      <Button variant="destructive" :disabled="deleting" @click="remove">
-        <Trash2 class="size-4" /> Delete
-      </Button>
+      <div class="flex gap-2">
+        <Button
+          variant="outline"
+          :disabled="doc.status === 'queued' || doc.status === 'processing' || doc.status === 'uploading' || doc.status === 'fetching'"
+          @click="rerunOpen = true"
+        >
+          <RefreshCw class="size-4" /> Re-run
+        </Button>
+        <Button variant="destructive" :disabled="deleting" @click="remove">
+          <Trash2 class="size-4" /> Delete
+        </Button>
+      </div>
     </div>
 
-    <div class="min-h-[70svh] overflow-hidden rounded-lg border bg-card">
-      <template v-if="doc.fileUrl">
-        <img v-if="doc.mimeType?.startsWith('image/')" :src="doc.fileUrl" :alt="doc.name" class="mx-auto max-h-[80svh] object-contain">
-        <iframe v-else-if="doc.format === 'pdf'" :src="doc.fileUrl" :title="doc.name" class="h-[80svh] w-full" />
-        <!-- HTML Documents never run scripts or reach the app: fully sandboxed. -->
-        <iframe v-else-if="doc.format === 'html'" :src="doc.fileUrl" :title="doc.name" sandbox="" class="h-[80svh] w-full bg-white" />
-        <div v-else class="grid place-items-center gap-2 p-10 text-sm text-muted-foreground">
-          <p>This format is shown once the Document is extracted.</p>
-          <a :href="doc.fileUrl" class="underline">Open the file</a>
-        </div>
-      </template>
-      <p v-else class="p-10 text-center text-sm text-muted-foreground">No file to show.</p>
-    </div>
+    <ReviewDocumentViewer
+      :document-id="doc.id"
+      :name="doc.name"
+      :format="doc.format"
+      :mime-type="doc.mimeType"
+      :file-url="doc.fileUrl"
+    />
 
     <section v-if="doc.invoices.length" class="grid gap-2">
       <h2 class="text-lg font-semibold">Invoices <span class="num text-muted-foreground">{{ doc.invoices.length }}</span></h2>
       <ul class="divide-y rounded-lg border bg-card">
         <li v-for="inv in doc.invoices" :key="inv.id" class="flex flex-wrap items-center justify-between gap-2 px-4 py-2 text-sm">
-          <span class="truncate">{{ invoiceTitle(inv.rawValues) }}</span>
-          <span class="num text-muted-foreground">
-            {{ inv.rawValues.total ?? '—' }} {{ inv.rawValues.currency ?? '' }}
+          <NuxtLink :to="`/app/invoices/${inv.id}`" class="truncate hover:underline">{{ invoiceTitle(inv.values) }}</NuxtLink>
+          <span class="flex items-center gap-3">
+            <span v-if="inv.reviewedAt" class="text-xs text-primary">Reviewed</span>
+            <span class="num text-muted-foreground">{{ inv.values.total ?? '—' }} {{ inv.values.currency ?? '' }}</span>
           </span>
         </li>
       </ul>
@@ -106,6 +122,7 @@ async function remove() {
               <th class="px-3 py-2 text-right font-medium">Tokens in / out</th>
               <th class="px-3 py-2 text-right font-medium">Duration</th>
               <th class="px-3 py-2 text-right font-medium">Est. cost</th>
+              <th class="px-3 py-2"><span class="sr-only">Actions</span></th>
             </tr>
           </thead>
           <tbody class="divide-y">
@@ -120,10 +137,15 @@ async function remove() {
               <td class="num px-3 py-2 text-right">{{ ex.inputTokens }} / {{ ex.outputTokens }}</td>
               <td class="num px-3 py-2 text-right">{{ (ex.durationMs / 1000).toFixed(1) }} s</td>
               <td class="num px-3 py-2 text-right">{{ formatCost(ex.estimatedCost) }}</td>
+              <td class="px-3 py-2 text-right">
+                <Button v-if="!ex.isCurrent" variant="ghost" size="sm" :disabled="!!switching" @click="makeCurrent(ex.id)">Make current</Button>
+              </td>
             </tr>
           </tbody>
         </table>
       </div>
     </section>
+
+    <ReviewRerunDialog v-model:open="rerunOpen" :document-id="doc.id" @queued="refresh()" />
   </div>
 </template>
