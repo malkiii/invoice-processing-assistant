@@ -12,6 +12,8 @@ import { readStorageConfig } from '../lib/storage-config'
 import { createHttpsTransport, resolveWithSystemDns } from '../domain/https-transport'
 import { fetchUrl } from '../domain/url-fetch'
 import { createUrlFetchQueue, createUrlIntake, type UrlFetchQueue, type UrlIntake } from '../domain/url-intake'
+import { createReextraction, type Reextraction } from '../domain/review/rerun'
+import { createReview, type Review } from '../domain/review/review'
 
 // Process-wide singletons for Nitro routes. Created lazily on first use.
 let config: AppConfig | undefined
@@ -109,4 +111,13 @@ export async function useUrlIntake(): Promise<UrlIntake> {
     fetchQueue: await useUrlFetchQueue(),
     fetchUrl: (url, limits) => fetchUrl(url, { resolve: resolveWithSystemDns, transport, limits }),
   })
+}
+
+// --- Review and Re-run (ticket 06) ---
+export function useReview(): Review {
+  return createReview({ db: useDb() })
+}
+
+export async function useReextraction(): Promise<Reextraction> {
+  return createReextraction({ db: useDb(), queue: await useExtractionQueue() })
 }
