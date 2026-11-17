@@ -1,22 +1,24 @@
 import type { H3Event } from 'h3'
 import { AdminError, createAdminService, type AdminService } from '../admin/service'
-import { noUserFiles } from '../admin/user-files'
+import { createStorageUserFiles } from '../domain/storage-user-files'
 import { createSmtpMailer } from '../lib/mailer'
 
 let adminService: AdminService | undefined
 
 /**
- * The admin service singleton. Storage plugs into `userFiles` and
- * `checkStorage` once it exists (ticket 04).
+ * The admin service singleton. Deleting a User deletes every object under their
+ * storage prefix; the health page checks that the bucket is reachable.
  */
 export function useAdminService(): AdminService {
   if (!adminService) {
     const config = useServerConfig()
+    const storage = useDocumentStorage()
     adminService = createAdminService({
       db: useDb(),
       mailer: config.smtp ? createSmtpMailer(config.smtp) : null,
       appUrl: config.authUrl,
-      userFiles: noUserFiles,
+      userFiles: createStorageUserFiles(storage),
+      checkStorage: () => storage.check(),
     })
   }
   return adminService
