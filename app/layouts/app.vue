@@ -2,11 +2,10 @@
 import { Download, FileText, LayoutDashboard, Layers, LayoutTemplate, LogOut, Receipt, Moon, Settings, ShieldCheck, Sun, Upload, UserRound } from '@lucide/vue'
 import { authClient } from '~/lib/auth-client'
 import { Button } from '@/components/ui/button'
-import { Sheet, SheetContent, SheetDescription, SheetHeader, SheetTitle } from '@/components/ui/sheet'
 
 const { user, refresh } = useAuthSession()
 const { theme, toggle } = useTheme()
-const downloadsOpen = ref(false)
+const { show: showDownloads } = useDownloads()
 
 // Later features add their entries here (Intake, Batches, Documents, Invoices, Templates).
 const nav = computed(() => [
@@ -56,7 +55,7 @@ async function signOut() {
           <Sun v-if="theme === 'noir'" class="size-4" />
           <Moon v-else class="size-4" />
         </Button>
-        <Button variant="ghost" size="icon" aria-label="Downloads" @click="downloadsOpen = true">
+        <Button variant="ghost" size="icon" aria-label="Downloads" @click="showDownloads">
           <Download class="size-4" />
         </Button>
         <div class="flex items-center gap-2 pl-2 text-sm">
@@ -77,14 +76,6 @@ async function signOut() {
       </main>
     </div>
 
-    <Sheet v-model:open="downloadsOpen">
-      <SheetContent>
-        <SheetHeader>
-          <SheetTitle>Downloads</SheetTitle>
-          <SheetDescription>Your past Exports appear here.</SheetDescription>
-        </SheetHeader>
-        <p class="px-4 text-sm text-muted-foreground">No Exports yet.</p>
-      </SheetContent>
-    </Sheet>
+    <ExportDownloads />
   </div>
 </template>

@@ -10,12 +10,14 @@ import { createProviderConnections } from './lib/provider-connections'
 import { readStorageConfig } from './lib/storage-config'
 import { startWorker } from './worker/start'
 import { startUrlFetching } from './worker/url-fetch'
+import { startExportGeneration } from './worker/exports'
 
 const config = readAppConfig()
 const { db, close } = createDatabase(config.databaseUrl)
+const storage = createS3Storage(readStorageConfig())
 const runner = createExtractionRunner({
   db,
-  storage: createS3Storage(readStorageConfig()),
+  storage,
   providers: createProviderConnections({ db, encryptionKey: config.encryptionKey }),
   rasterizePdf: createPdftoppmRasterizer(),
   checks: createChecksRunner(db),
@@ -23,6 +25,7 @@ const runner = createExtractionRunner({
 const concurrency = Number(process.env.WORKER_CONCURRENCY) || undefined
 const worker = await startWorker({ databaseUrl: config.databaseUrl, extraction: { runner, concurrency } })
 const stopUrlFetching = await startUrlFetching(worker.boss, { databaseUrl: config.databaseUrl })
+await startExportGeneration(worker.boss, { db, storage })
 console.log('[worker] connected to pg-boss, waiting for jobs')
 
 let stopping = false

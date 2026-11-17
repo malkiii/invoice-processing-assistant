@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { Check, ChevronRight, RefreshCw, Undo2 } from '@lucide/vue'
+import { Check, ChevronRight, Download, RefreshCw, Undo2 } from '@lucide/vue'
 import type { InternalApi } from 'nitropack/types'
 import { Button } from '@/components/ui/button'
 
@@ -84,6 +84,7 @@ onBeforeUnmount(() => window.removeEventListener('keydown', onKey))
 
 const failedChecks = computed(() => (inv.value?.checkResults ?? []).filter((r) => r.status === 'fail'))
 const rerunOpen = ref(false)
+const exportOpen = ref(false)
 </script>
 
 <template>
@@ -101,6 +102,7 @@ const rerunOpen = ref(false)
       </div>
       <div class="flex flex-wrap gap-2">
         <Button variant="outline" size="sm" @click="rerunOpen = true"><RefreshCw class="size-4" /> Re-run</Button>
+        <Button v-if="inv.isCurrentExtraction" variant="outline" size="sm" @click="exportOpen = true"><Download class="size-4" /> Export</Button>
         <Button v-if="inv.reviewedAt" variant="outline" size="sm" :disabled="saving" @click="setReviewed(false)">
           <Undo2 class="size-4" /> Mark as unreviewed
         </Button>
@@ -183,6 +185,7 @@ const rerunOpen = ref(false)
       </div>
     </div>
 
+    <ExportDialog v-model:open="exportOpen" :scope="{ kind: 'invoice', invoiceId: inv.id }" scope-label="This Invoice" />
     <ReviewRerunDialog v-model:open="rerunOpen" :document-id="inv.documentId" @queued="navigateTo(`/app/documents/${inv.documentId}`)" />
   </div>
 </template>

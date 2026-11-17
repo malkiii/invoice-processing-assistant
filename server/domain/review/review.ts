@@ -192,19 +192,6 @@ export function createReview(deps: ReviewDeps) {
 
     /** The Invoice table: Invoices of Current Extractions only, with merged values. */
     async listInvoices(userId: string, filter: InvoiceListFilter): Promise<InvoiceListItem[]> {
-      const conditions: SQL[] = [eq(invoice.userId, userId), eq(extraction.isCurrent, true)]
-      if (filter.reviewed === true) conditions.push(isNotNull(invoice.reviewedAt))
-      if (filter.reviewed === false) conditions.push(isNull(invoice.reviewedAt))
-      if (filter.checks === 'failing') conditions.push(hasFailedCheck)
-      if (filter.checks === 'clean') conditions.push(and(isNotNull(invoice.checkResults), not(hasFailedCheck))!)
-      if (filter.checks === 'unchecked') conditions.push(isNull(invoice.checkResults))
-      if (filter.vendor) conditions.push(ilike(vendorName, `%${escapeLike(filter.vendor)}%`))
-      if (filter.dateFrom) conditions.push(gte(issueDate, filter.dateFrom))
-      if (filter.dateTo) conditions.push(lte(issueDate, filter.dateTo))
-      if (filter.search) {
-        const pattern = `%${escapeLike(filter.search)}%`
-        conditions.push(or(ilike(vendorName, pattern), ilike(invoiceNumber, pattern), ilike(document.name, pattern))!)
-      }
       const order =
         filter.order === 'needs-review'
           ? [sql`case when ${hasFailedCheck} then 0 else 1 end`, asc(invoice.createdAt), asc(invoice.position)]
@@ -227,7 +214,7 @@ export function createReview(deps: ReviewDeps) {
         .from(invoice)
         .innerJoin(extraction, eq(extraction.id, invoice.extractionId))
         .innerJoin(document, eq(document.id, invoice.documentId))
-        .where(and(...conditions))
+        .where(invoiceListConditions(userId, filter))
         .orderBy(...order)
         .limit(Math.min(filter.limit ?? 200, 500))
       return rows.map(({ correctedValues, checkResults: stored, total, ...row }) => {
@@ -330,6 +317,27 @@ const vendorName = mergedText(['vendor', 'name'])
 const invoiceNumber = mergedText(['invoice_number'])
 const issueDate = mergedText(['issue_date'])
 const hasFailedCheck = sql`coalesce(${invoice.checkResults} @> '[{"status":"fail"}]'::jsonb, false)`
+
+/**
+ * The Invoice table's filter as SQL: the User's Invoices of Current Extractions matching `filter`.
+ * The query must join `extraction` and `document`. Also used for Exports of "the current filter".
+ */
+export function invoiceListConditions(userId: string, filter: InvoiceListFilter): SQL {
+  const conditions: SQL[] = [eq(invoice.userId, userId), eq(extraction.isCurrent, true)]
+  if (filter.reviewed === true) conditions.push(isNotNull(invoice.reviewedAt))
+  if (filter.reviewed === false) conditions.push(isNull(invoice.reviewedAt))
+  if (filter.checks === 'failing') conditions.push(hasFailedCheck)
+  if (filter.checks === 'clean') conditions.push(and(isNotNull(invoice.checkResults), not(hasFailedCheck))!)
+  if (filter.checks === 'unchecked') conditions.push(isNull(invoice.checkResults))
+  if (filter.vendor) conditions.push(ilike(vendorName, `%${escapeLike(filter.vendor)}%`))
+  if (filter.dateFrom) conditions.push(gte(issueDate, filter.dateFrom))
+  if (filter.dateTo) conditions.push(lte(issueDate, filter.dateTo))
+  if (filter.search) {
+    const pattern = `%${escapeLike(filter.search)}%`
+    conditions.push(or(ilike(vendorName, pattern), ilike(invoiceNumber, pattern), ilike(document.name, pattern))!)
+  }
+  return and(...conditions)!
+}
 
 function escapeLike(text: string): string {
   return text.replace(/[\\%_]/g, (c) => `\\${c}`)

@@ -14,6 +14,7 @@ import { fetchUrl } from '../domain/url-fetch'
 import { createUrlFetchQueue, createUrlIntake, type UrlFetchQueue, type UrlIntake } from '../domain/url-intake'
 import { createReextraction, type Reextraction } from '../domain/review/rerun'
 import { createReview, type Review } from '../domain/review/review'
+import { createExportQueue, createExports, type ExportQueue, type Exports } from '../domain/export/exports'
 
 // Process-wide singletons for Nitro routes. Created lazily on first use.
 let config: AppConfig | undefined
@@ -120,4 +121,20 @@ export function useReview(): Review {
 
 export async function useReextraction(): Promise<Reextraction> {
   return createReextraction({ db: useDb(), queue: await useExtractionQueue() })
+}
+
+// --- Exports (ticket 08) ---
+let exportQueue: Promise<ExportQueue> | undefined
+
+function useExportQueue(): Promise<ExportQueue> {
+  return (exportQueue ??= useQueueBoss()
+    .then(createExportQueue)
+    .catch((error) => {
+      exportQueue = undefined
+      throw error
+    }))
+}
+
+export async function useExports(): Promise<Exports> {
+  return createExports({ db: useDb(), storage: useDocumentStorage(), queue: await useExportQueue() })
 }

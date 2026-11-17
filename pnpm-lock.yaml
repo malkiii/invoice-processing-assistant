@@ -74,6 +74,9 @@ importers:
       ipaddr.js:
         specifier: ^2.5.0
         version: 2.5.0
+      jszip:
+        specifier: ^3.10.2
+        version: 3.10.2
       linkedom:
         specifier: ^0.18.15
         version: 0.18.15
@@ -153,9 +156,6 @@ importers:
       esbuild:
         specifier: ^0.28.2
         version: 0.28.2
-      jszip:
-        specifier: ^3.10.2
-        version: 3.10.2
       shadcn-nuxt:
         specifier: ^2.9.0
         version: 2.9.0(@emnapi/core@2.0.0-beta.2)(@emnapi/runtime@2.0.0-beta.2)(magicast@0.5.5)

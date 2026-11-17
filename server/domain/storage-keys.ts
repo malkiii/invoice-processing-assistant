@@ -9,3 +9,7 @@ export function userStoragePrefix(userId: string): string {
 export function storageKeyFor(userId: string, documentId: string): string {
   return `${userStoragePrefix(userId)}documents/${documentId}`
 }
+
+export function exportStorageKey(userId: string, exportId: string): string {
+  return `${userStoragePrefix(userId)}exports/${exportId}`
+}

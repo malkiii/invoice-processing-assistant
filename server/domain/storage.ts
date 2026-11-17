@@ -36,8 +36,11 @@ export interface PresignedUpload {
 /** Document bytes behind the S3 API (ADR 0002). Keys are opaque; callers choose them. */
 export interface ObjectStorage {
   presignUpload(key: string): Promise<PresignedUpload>
-  /** A short-lived URL a browser can open to view the file inline. */
-  presignDownload(key: string, options: { contentType: string; fileName: string }): Promise<string>
+  /** A short-lived URL a browser can open to view the file inline, or save it with `attachment`. */
+  presignDownload(
+    key: string,
+    options: { contentType: string; fileName: string; disposition?: 'inline' | 'attachment' },
+  ): Promise<string>
   /** The stored size in bytes, or null when no object exists at `key`. */
   size(key: string): Promise<number | null>
   read(key: string): Promise<Uint8Array>
@@ -75,11 +78,11 @@ function isNotFound(error: unknown): boolean {
   )
 }
 
-/** RFC 6266 `inline` disposition that survives non-ASCII file names. */
-function inlineDisposition(fileName: string): string {
+/** RFC 6266 disposition that survives non-ASCII file names. */
+function contentDisposition(fileName: string, type: 'inline' | 'attachment' = 'inline'): string {
   const base = fileName.split('/').pop() || 'document'
   const ascii = base.replace(/[^\x20-\x7e]|["\\]/g, '_')
-  return `inline; filename="${ascii}"; filename*=UTF-8''${encodeURIComponent(base)}`
+  return `${type}; filename="${ascii}"; filename*=UTF-8''${encodeURIComponent(base)}`
 }
 
 export function createS3Storage(config: StorageConfig): ObjectStorage {
@@ -100,12 +103,12 @@ export function createS3Storage(config: StorageConfig): ObjectStorage {
       }
     },
 
-    presignDownload(key, { contentType, fileName }) {
+    presignDownload(key, { contentType, fileName, disposition }) {
       const command = new GetObjectCommand({
         Bucket,
         Key: key,
         ResponseContentType: contentType,
-        ResponseContentDisposition: inlineDisposition(fileName),
+        ResponseContentDisposition: contentDisposition(fileName, disposition),
       })
       return getSignedUrl(signer, command, { expiresIn: DOWNLOAD_TTL_SECONDS })
     },

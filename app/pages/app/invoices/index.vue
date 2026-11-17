@@ -1,6 +1,7 @@
 <script setup lang="ts">
-import { Check, Search } from '@lucide/vue'
+import { Check, Download, Search } from '@lucide/vue'
 import { refDebounced } from '@vueuse/core'
+import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 
 definePageMeta({ layout: 'app', middleware: 'auth' })
@@ -27,6 +28,38 @@ watch(query, (next) => void router.replace({ query: next }))
 const debounced = refDebounced(query, 250)
 const { data: invoices, pending } = await useFetch('/api/invoices', { query: debounced })
 
+// Export: the selected rows, or the whole current filter when nothing is selected.
+const selected = ref<string[]>([])
+watch(invoices, (rows) => {
+  const visible = new Set((rows ?? []).map((r) => r.id))
+  selected.value = selected.value.filter((id) => visible.has(id))
+})
+const allSelected = computed(() => !!invoices.value?.length && selected.value.length === invoices.value.length)
+function toggleAll() {
+  selected.value = allSelected.value ? [] : (invoices.value ?? []).map((r) => r.id)
+}
+const exportOpen = ref(false)
+const exportScope = computed(() =>
+  selected.value.length
+    ? { kind: 'selection' as const, invoiceIds: selected.value }
+    : {
+        kind: 'filter' as const,
+        filter: {
+          search: filters.search || undefined,
+          reviewed: filters.reviewed === '' ? undefined : filters.reviewed === 'true',
+          checks: (filters.checks || undefined) as 'unchecked' | 'clean' | 'failing' | undefined,
+          vendor: filters.vendor || undefined,
+          dateFrom: filters.from || undefined,
+          dateTo: filters.to || undefined,
+        },
+      },
+)
+const exportLabel = computed(() =>
+  selected.value.length
+    ? `${selected.value.length} selected Invoice${selected.value.length === 1 ? '' : 's'}`
+    : 'Every Invoice matching the current filter',
+)
+
 function formatTotal(total: number | null, currency: string | null) {
   if (total == null) return '—'
   return `${total.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })} ${currency ?? ''}`.trim()
@@ -37,9 +70,14 @@ const selectClass = 'h-9 rounded-md border bg-background px-2 text-sm'
 
 <template>
   <div class="grid gap-4">
-    <div>
-      <h1 class="text-2xl font-semibold">Invoices</h1>
-      <p class="text-sm text-muted-foreground">Invoices of each Document's Current Extraction.</p>
+    <div class="flex flex-wrap items-start justify-between gap-2">
+      <div>
+        <h1 class="text-2xl font-semibold">Invoices</h1>
+        <p class="text-sm text-muted-foreground">Invoices of each Document's Current Extraction.</p>
+      </div>
+      <Button variant="outline" size="sm" :disabled="!invoices?.length" data-testid="export-invoices" @click="exportOpen = true">
+        <Download class="size-4" /> {{ selected.length ? `Export ${selected.length} selected` : 'Export all matching' }}
+      </Button>
     </div>
 
     <form class="flex flex-wrap items-end gap-2" role="search" @submit.prevent>
@@ -78,6 +116,9 @@ const selectClass = 'h-9 rounded-md border bg-background px-2 text-sm'
       <table class="w-full text-sm">
         <thead class="text-left text-muted-foreground">
           <tr>
+            <th class="w-8 px-3 py-2">
+              <input type="checkbox" :checked="allSelected" :disabled="!invoices?.length" aria-label="Select all Invoices" @change="toggleAll">
+            </th>
             <th class="px-3 py-2 font-medium">Vendor</th>
             <th class="px-3 py-2 font-medium">Number</th>
             <th class="px-3 py-2 font-medium">Issued</th>
@@ -89,6 +130,9 @@ const selectClass = 'h-9 rounded-md border bg-background px-2 text-sm'
         </thead>
         <tbody class="divide-y">
           <tr v-for="inv in invoices" :key="inv.id" class="hover:bg-accent/10">
+            <td class="px-3 py-2">
+              <input v-model="selected" type="checkbox" :value="inv.id" :aria-label="`Select ${inv.invoiceNumber ?? inv.documentName}`">
+            </td>
             <td class="px-3 py-2">
               <NuxtLink :to="`/app/invoices/${inv.id}`" class="font-medium hover:underline">{{ inv.vendorName ?? '—' }}</NuxtLink>
               <span v-if="inv.corrected" class="ml-1 text-xs text-primary" title="Has corrections">edited</span>
@@ -106,10 +150,11 @@ const selectClass = 'h-9 rounded-md border bg-background px-2 text-sm'
             </td>
           </tr>
           <tr v-if="invoices && !invoices.length">
-            <td colspan="7" class="px-3 py-8 text-center text-muted-foreground">No Invoices match.</td>
+            <td colspan="8" class="px-3 py-8 text-center text-muted-foreground">No Invoices match.</td>
           </tr>
         </tbody>
       </table>
     </div>
+    <ExportDialog v-model:open="exportOpen" :scope="exportScope" :scope-label="exportLabel" />
   </div>
 </template>

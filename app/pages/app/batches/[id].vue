@@ -1,6 +1,10 @@
 <script setup lang="ts">
+import { Download } from '@lucide/vue'
+import { Button } from '@/components/ui/button'
+
 definePageMeta({ layout: 'app', middleware: 'auth' })
 useHead({ title: 'Batch' })
+const exportOpen = ref(false)
 
 const route = useRoute()
 const id = route.params.id as string
@@ -39,7 +43,12 @@ const counts = computed(() => {
   <div v-if="batch" class="grid gap-6">
     <div>
       <NuxtLink to="/app/batches" class="text-sm text-muted-foreground underline">Batches</NuxtLink>
-      <h1 class="text-2xl font-semibold">Batch of {{ formatDateTime(batch.createdAt) }}</h1>
+      <div class="flex flex-wrap items-center justify-between gap-2">
+        <h1 class="text-2xl font-semibold">Batch of {{ formatDateTime(batch.createdAt) }}</h1>
+        <Button variant="outline" size="sm" :disabled="!counts.extracted" @click="exportOpen = true">
+          <Download class="size-4" /> Export
+        </Button>
+      </div>
       <div class="mt-2 flex flex-wrap gap-2 text-sm">
         <span v-for="(n, status) in counts" :key="status" class="inline-flex items-center gap-1">
           <DocumentStatusBadge :status="String(status)" /> <span class="num">{{ n }}</span>
@@ -69,5 +78,6 @@ const counts = computed(() => {
         </tr>
       </tbody>
     </table>
+    <ExportDialog v-model:open="exportOpen" :scope="{ kind: 'batch', batchId: batch.id }" scope-label="Every Invoice in this Batch" />
   </div>
 </template>
