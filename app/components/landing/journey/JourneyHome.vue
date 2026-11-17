@@ -48,6 +48,11 @@ const files = [
   { ext: 'JSON', icon: FileJson, preview: ['{ "total_amount": 1240,', '  "line_items": [ … ] }'] },
 ]
 
+// Without JavaScript the hero would stay hidden, so reveal it.
+useHead({
+  noscript: [{ innerHTML: '<style>.journey .j-title,.journey .j-hero-fade,.journey .j-hero-paper,.journey .j-tag{visibility:visible!important}</style>' }],
+})
+
 useLandingMotion(root, ({ gsap, SplitText, ScrollTrigger, reduced }) => {
   reducedMode.value = reduced
   const el = root.value!
@@ -77,6 +82,9 @@ useLandingMotion(root, ({ gsap, SplitText, ScrollTrigger, reduced }) => {
       scrollTrigger: { trigger: '.j-hero', start: 'top top', end: 'bottom top', scrub: true },
     })
   }
+  // The hero starts hidden (see the style block) so the server-rendered end state never
+  // flashes before hydration; the `from` tweens above have already applied their start state.
+  el.classList.add('j-ready')
 
   // ── Journey (pinned, scrubbed) ─────────────────────────────────────────
   if (!reduced) {
@@ -440,6 +448,14 @@ useLandingMotion(root, ({ gsap, SplitText, ScrollTrigger, reduced }) => {
 </template>
 
 <style scoped>
+@media (prefers-reduced-motion: no-preference) {
+  .journey:not(.j-ready) .j-title,
+  .journey:not(.j-ready) .j-hero-fade,
+  .journey:not(.j-ready) .j-hero-paper,
+  .journey:not(.j-ready) .j-tag {
+    visibility: hidden;
+  }
+}
 .j-glow {
   background: radial-gradient(600px circle at var(--mx, 70%) var(--my, 40%), rgb(198 244 50 / 0.12), transparent 60%);
 }
