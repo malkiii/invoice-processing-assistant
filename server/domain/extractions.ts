@@ -2,6 +2,7 @@
 import { and, asc, count, desc, eq } from 'drizzle-orm'
 import type { Database } from '../db/client'
 import { extraction, invoice } from '../db/schema'
+import type { CheckResult } from './checks'
 import type { ProviderKind } from './provider-presets'
 import type { InvoiceValues } from './template/fields'
 import type { TemplateSnapshot } from './template/snapshot'
@@ -31,7 +32,7 @@ export interface InvoiceRecord {
   position: number
   rawValues: InvoiceValues
   correctedValues: InvoiceValues
-  checkResults: unknown
+  checkResults: CheckResult[] | null
   reviewedAt: Date | null
 }
 
