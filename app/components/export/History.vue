@@ -2,10 +2,10 @@
 import { Download, LoaderCircle, Trash2, TriangleAlert } from '@lucide/vue'
 import { Button } from '@/components/ui/button'
 import { Sheet, SheetContent, SheetDescription, SheetHeader, SheetTitle } from '@/components/ui/sheet'
-import type { ExportItem } from '~/composables/useDownloads'
+import type { ExportItem } from '~/composables/useExportHistory'
 
-/** The downloads history drawer in the `/app` layout. */
-const { open, items, loading, refresh, downloadUrl, remove } = useDownloads()
+/** The Export history drawer in the `/app` layout. */
+const { open, items, loading, refresh, downloadUrl, remove } = useExportHistory()
 const error = ref('')
 
 watch(open, (isOpen) => {
@@ -41,13 +41,13 @@ async function onRemove(id: string) {
   <Sheet v-model:open="open">
     <SheetContent class="overflow-y-auto">
       <SheetHeader>
-        <SheetTitle>Downloads</SheetTitle>
+        <SheetTitle>Exports</SheetTitle>
         <SheetDescription>Your past Exports. Large ones are prepared in the background.</SheetDescription>
       </SheetHeader>
       <p v-if="error" class="px-4 text-sm text-destructive" role="alert">{{ error }}</p>
       <p v-if="!items && loading" class="px-4 text-sm text-muted-foreground">Loading…</p>
       <p v-else-if="items && !items.length" class="px-4 text-sm text-muted-foreground">No Exports yet.</p>
-      <ul class="grid gap-2 px-4 pb-4" data-testid="downloads">
+      <ul class="grid gap-2 px-4 pb-4" data-testid="export-history">
         <li v-for="e in items ?? []" :key="e.id" class="grid gap-1 rounded-md border p-3 text-sm">
           <div class="flex items-center justify-between gap-2">
             <span class="num truncate font-medium" :title="e.fileName ?? undefined">{{ e.fileName ?? 'Preparing…' }}</span>

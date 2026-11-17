@@ -206,4 +206,13 @@ describe('flattenInvoices with custom Template Fields', () => {
     expect(col('total')).toBe('{"gross":10}')
     expect(col('vendor.name')).toBeNull()
   })
+
+  it('puts a money value that is not an amount and currency into the amount column, keeping one column shape', () => {
+    const odd = exportInvoice({ ...receipt.values, amount_due: '12.50' }, { id: 'rec-2', fields: receiptFields })
+    const { invoices } = flattenInvoices([receipt, odd])
+    expect(invoices.columns).not.toContain('amount_due')
+    const col = (name: string) => invoices.rows.map((row) => row[invoices.columns.indexOf(name)])
+    expect(col('amount_due.amount')).toEqual([12.5, '12.50'])
+    expect(col('amount_due.currency')).toEqual(['EUR', null])
+  })
 })

@@ -32,7 +32,7 @@ export interface FlatInvoices {
 
 const META_COLUMNS = ['invoice_id', 'document', 'invoice_in_document', 'template', 'reviewed_at']
 
-function isRecord(value: unknown): value is Record<string, unknown> {
+export function isRecord(value: unknown): value is Record<string, unknown> {
   return typeof value === 'object' && value !== null && !Array.isArray(value)
 }
 
@@ -61,8 +61,9 @@ function toCell(value: unknown): Cell {
 
 function scalarCells(prefix: string, field: Field, value: unknown, out: Map<string, Cell>, columns: Columns) {
   const name = `${prefix}${field.key}`
-  if (field.type === 'money' && (value == null || isRecord(value))) {
-    const money = value ?? {}
+  if (field.type === 'money') {
+    // A value that is not { amount, currency } is kept whole in the amount column.
+    const money = isRecord(value) ? value : { amount: value, currency: null }
     columns.add(`${name}.amount`)
     columns.add(`${name}.currency`)
     out.set(`${name}.amount`, toCell(money.amount))

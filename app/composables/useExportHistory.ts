@@ -6,13 +6,13 @@ const POLL_MS = 2000
 let pollTimer: ReturnType<typeof setTimeout> | undefined
 
 /**
- * The downloads history drawer (spec "Export"), shared by the `/app` layout and every Export
+ * The Export history drawer (spec "Export"), shared by the `/app` layout and every Export
  * button. While an Export is pending, the list is polled until the worker has finished it.
  */
-export function useDownloads() {
-  const open = useState('downloads-open', () => false)
-  const items = useState<ExportItem[] | null>('downloads-items', () => null)
-  const loading = useState('downloads-loading', () => false)
+export function useExportHistory() {
+  const open = useState('export-history-open', () => false)
+  const items = useState<ExportItem[] | null>('export-history-items', () => null)
+  const loading = useState('export-history-loading', () => false)
 
   async function refresh() {
     loading.value = true

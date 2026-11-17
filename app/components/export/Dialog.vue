@@ -11,7 +11,7 @@ type ExportScope = InternalApi['/api/exports']['post']['scope']
 const props = defineProps<{ scope: ExportScope; scopeLabel: string }>()
 const open = defineModel<boolean>('open', { default: false })
 
-const { show, download } = useDownloads()
+const { show, download } = useExportHistory()
 const dialog = ref<HTMLDialogElement>()
 const format = ref<'csv' | 'xlsx' | 'json'>('csv')
 const csvLayout = ref<'rows' | 'zip'>('rows')

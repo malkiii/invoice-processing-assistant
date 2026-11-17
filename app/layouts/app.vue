@@ -5,7 +5,7 @@ import { Button } from '@/components/ui/button'
 
 const { user, refresh } = useAuthSession()
 const { theme, toggle } = useTheme()
-const { show: showDownloads } = useDownloads()
+const { show: showExports } = useExportHistory()
 
 // Later features add their entries here (Intake, Batches, Documents, Invoices, Templates).
 const nav = computed(() => [
@@ -55,7 +55,7 @@ async function signOut() {
           <Sun v-if="theme === 'noir'" class="size-4" />
           <Moon v-else class="size-4" />
         </Button>
-        <Button variant="ghost" size="icon" aria-label="Downloads" @click="showDownloads">
+        <Button variant="ghost" size="icon" aria-label="Exports" @click="showExports">
           <Download class="size-4" />
         </Button>
         <div class="flex items-center gap-2 pl-2 text-sm">
@@ -76,6 +76,6 @@ async function signOut() {
       </main>
     </div>
 
-    <ExportDownloads />
+    <ExportHistory />
   </div>
 </template>

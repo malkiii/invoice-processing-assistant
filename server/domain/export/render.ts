@@ -4,7 +4,7 @@
  */
 import JSZip from 'jszip'
 import { isGroupField } from '../template/fields'
-import { flattenInvoices, rowPerLineItem, type Cell, type ExportInvoice, type Table } from './flatten'
+import { flattenInvoices, isRecord, rowPerLineItem, type Cell, type ExportInvoice, type Table } from './flatten'
 
 export const EXPORT_FORMATS = ['csv', 'xlsx', 'json'] as const
 export type ExportFormat = (typeof EXPORT_FORMATS)[number]
@@ -25,6 +25,10 @@ export interface RenderedExport {
 }
 
 const encoder = new TextEncoder()
+
+function zipBytes(zip: JSZip): Promise<Uint8Array> {
+  return zip.generateAsync({ type: 'uint8array', compression: 'DEFLATE' })
+}
 
 // --- CSV ---
 
@@ -123,7 +127,7 @@ async function toXlsx(sheets: { name: string; table: Table }[]): Promise<Uint8Ar
       '</Relationships>',
   )
   sheets.forEach((s, i) => zip.file(sheetPath(i), worksheet(s.table)))
-  return zip.generateAsync({ type: 'uint8array', compression: 'DEFLATE' })
+  return zipBytes(zip)
 }
 
 // --- JSON ---
@@ -135,8 +139,7 @@ function templateValues(inv: ExportInvoice): Record<string, unknown> {
       const value = inv.values[field.key] ?? null
       if (!isGroupField(field) || value === null) return [field.key, value]
       const pick = (entry: unknown) =>
-        entry && typeof entry === 'object' && !Array.isArray(entry)
-          ? Object.fromEntries(field.fields.map((c) => [c.key, (entry as Record<string, unknown>)[c.key] ?? null]))
+        isRecord(entry) ? Object.fromEntries(field.fields.map((c) => [c.key, entry[c.key] ?? null]))
           : entry
       return [field.key, field.type === 'list' && Array.isArray(value) ? value.map(pick) : pick(value)]
     }),
@@ -186,7 +189,7 @@ export async function renderExport(invoices: ExportInvoice[], options: ExportOpt
       zip.file('invoices.csv', toCsv(header))
       zip.file('line_items.csv', toCsv(lineItems))
       return {
-        bytes: await zip.generateAsync({ type: 'uint8array', compression: 'DEFLATE' }),
+        bytes: await zipBytes(zip),
         contentType: 'application/zip',
         extension: 'zip',
       }

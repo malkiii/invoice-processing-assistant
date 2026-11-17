@@ -1,4 +1,4 @@
-/** Exports: one row per requested download, listed in the downloads history drawer. */
+/** Exports: one row per requested Export, listed in the Export history drawer. */
 import { sql } from 'drizzle-orm'
 import { bigint, boolean, check, index, integer, jsonb, pgTable, text, timestamp, uuid } from 'drizzle-orm/pg-core'
 import type { ExportScope, ExportStatus } from '../../domain/export/exports'
@@ -21,7 +21,7 @@ export const exportFile = pgTable(
     status: text('status').$type<ExportStatus>().notNull(),
     /** Invoices in scope when requested; updated to the exported count once generated. */
     invoiceCount: integer('invoice_count').notNull(),
-    /** Download name, e.g. `invoices-2026-11-17-1430.csv`. Set once generated. */
+    /** File name the browser saves it as, e.g. `invoices-2026-11-17-1430.csv`. Set once generated. */
     fileName: text('file_name'),
     /** Object key in storage, under the User's prefix. Set once generated. */
     storageKey: text('storage_key'),

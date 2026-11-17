@@ -162,6 +162,24 @@ describe('Exports', () => {
     expect(await zip.file('xl/worksheets/sheet1.xml')!.async('string')).toContain('L-4')
   })
 
+  it('leaves no file behind when the Export is deleted while it is being generated', async () => {
+    const { ids } = await extracted([values('RACE-1', 1), values('RACE-2', 2), values('RACE-3', 3), values('RACE-4', 4)])
+    const pending = await exports.request(alice, { format: 'csv', scope: { kind: 'selection', invoiceIds: ids } })
+    const racing = createExports({
+      db: testDb.db,
+      queue: { enqueue: async () => {} },
+      storage: {
+        ...testStorage.storage,
+        async write(key, bytes, contentType) {
+          await exports.remove(alice, pending.id) // the User deletes it mid-generation
+          await testStorage.storage.write(key, bytes, contentType)
+        },
+      },
+    })
+    await racing.generate(pending.id)
+    expect(await testStorage.storage.size(`users/${alice}/exports/${pending.id}`)).toBeNull()
+  })
+
   it('deletes an Export and its file', async () => {
     const { ids } = await extracted([values('DEL-1', 1)])
     const done = await exports.request(alice, { format: 'json', scope: { kind: 'invoice', invoiceId: ids[0]! } })

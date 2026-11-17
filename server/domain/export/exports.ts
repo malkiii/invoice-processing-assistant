@@ -1,7 +1,7 @@
 /**
  * Exports (spec "Export"): a User asks for a file of some Invoices; small Exports are generated
  * while they wait, larger ones by the worker. Every Export is stored in object storage and listed
- * in the downloads history drawer. Values are always Raw overlaid with Corrected, and only
+ * in the Export history drawer. Values are always Raw overlaid with Corrected, and only
  * Invoices of Current Extractions are exported.
  */
 import { and, asc, count, desc, eq, inArray, isNotNull, type SQL } from 'drizzle-orm'
@@ -192,7 +192,7 @@ export function createExports(deps: ExportsDeps) {
       const file = await renderExport(invoices, { format: row.format, csvLayout: row.csvLayout ?? undefined })
       const key = exportStorageKey(row.userId, row.id)
       await storage.write(key, file.bytes, file.contentType)
-      await db
+      const updated = await db
         .update(exportFile)
         .set({
           status: 'ready',
@@ -204,6 +204,9 @@ export function createExports(deps: ExportsDeps) {
           completedAt: new Date(),
         })
         .where(eq(exportFile.id, row.id))
+        .returning({ id: exportFile.id })
+      // Deleted by the User while it was being generated: drop the file nobody can reach.
+      if (updated.length === 0) await storage.delete(key)
     } catch (error) {
       if (!(error instanceof ExportError)) log.error('[exports] generating export failed', error)
       await db
@@ -269,7 +272,7 @@ export function createExports(deps: ExportsDeps) {
 
     generate,
 
-    /** The downloads history, newest first. */
+    /** The Export history, newest first. */
     async list(userId: string): Promise<ExportSummary[]> {
       const rows = await db
         .select()
