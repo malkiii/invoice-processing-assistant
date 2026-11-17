@@ -70,7 +70,7 @@ const deleteUser = (id: string, email: string) => {
 }
 
 // Settings
-const form = reactive({ signUpPolicy: 'open', maxDocumentMb: 25, maxDocumentPages: 30, maxConcurrentDocumentsPerUser: 2 })
+const form = reactive({ signUpPolicy: 'open', maxDocumentMb: 25, maxDocumentPages: 30, maxConcurrentDocumentsPerUser: 3 })
 watchEffect(() => {
   if (!settings.value) return
   form.signUpPolicy = settings.value.signUpPolicy

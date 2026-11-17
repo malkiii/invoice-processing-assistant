@@ -14,6 +14,8 @@ RUN --mount=type=cache,id=pnpm,target=/pnpm/store \
 
 # ---- dev: used by docker-compose.dev.yml with the source bind-mounted ----
 FROM deps AS dev
+# poppler's pdftoppm rasterises PDFs for vision models that cannot read PDFs (ADR 0004).
+RUN apk add --no-cache poppler-utils
 ENV NODE_ENV=development
 EXPOSE 3000
 CMD ["sh", "-c", "pnpm db:migrate && pnpm dev --host 0.0.0.0"]
@@ -25,6 +27,8 @@ RUN pnpm build
 
 # ---- runtime: only the self-contained .output ----
 FROM node:22-alpine AS runtime
+# poppler's pdftoppm rasterises PDFs for vision models that cannot read PDFs (ADR 0004).
+RUN apk add --no-cache poppler-utils
 ENV NODE_ENV=production HOST=0.0.0.0 PORT=3000
 WORKDIR /app
 COPY --from=build --chown=node:node /app/.output ./.output

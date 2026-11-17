@@ -7,6 +7,7 @@ import { check, doublePrecision, index, integer, pgTable, primaryKey, text, time
 import type { ModelCapability } from '../../domain/model-capability'
 import type { ProviderKind } from '../../domain/provider-presets'
 import { user } from './auth'
+import { template } from './templates'
 
 export type ProviderConnectionStatus = 'ok' | 'broken'
 
@@ -82,8 +83,8 @@ export const userPreferences = pgTable(
       onDelete: 'set null',
     }),
     defaultModel: text('default_model'),
-    /** Filled in once Templates exist (issue 05); no foreign key until then. */
-    defaultTemplateId: text('default_template_id'),
+    /** Null means the built-in default Template. */
+    defaultTemplateId: text('default_template_id').references(() => template.id, { onDelete: 'set null' }),
     theme: text('theme').$type<'noir' | 'day'>().default('noir').notNull(),
     /** Null keeps Documents forever. */
     autoDeleteAfterDays: integer('auto_delete_after_days'),
