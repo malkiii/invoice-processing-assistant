@@ -52,7 +52,7 @@ export const document = pgTable(
     index('document_batch_id_idx').on(t.batchId),
     check(
       'document_status',
-      sql`${t.status} in ('uploading', 'queued', 'processing', 'extracted', 'failed')`,
+      sql`${t.status} in ('uploading', 'fetching', 'queued', 'processing', 'extracted', 'failed')`,
     ),
   ],
 )

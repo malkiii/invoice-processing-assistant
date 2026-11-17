@@ -9,6 +9,9 @@ import { createExtractionQueue, type ExtractionQueue } from '../domain/extractio
 import { createIntake, type Intake } from '../domain/intake'
 import { createS3Storage, type ObjectStorage } from '../domain/storage'
 import { readStorageConfig } from '../lib/storage-config'
+import { createHttpsTransport, resolveWithSystemDns } from '../domain/https-transport'
+import { fetchUrl } from '../domain/url-fetch'
+import { createUrlFetchQueue, createUrlIntake, type UrlFetchQueue, type UrlIntake } from '../domain/url-intake'
 
 // Process-wide singletons for Nitro routes. Created lazily on first use.
 let config: AppConfig | undefined
@@ -44,17 +47,29 @@ export function useDocumentStorage(): ObjectStorage {
   return (storage ??= createS3Storage(readStorageConfig()))
 }
 
-/** pg-boss producer for extraction jobs. The app only sends; the worker consumes. */
-export function useExtractionQueue(): Promise<ExtractionQueue> {
-  return (extractionQueue ??= (async () => {
+let queueBoss: Promise<PgBoss> | undefined
+
+/** One pg-boss connection per process for sending jobs. The app only sends; the worker consumes. */
+function useQueueBoss(): Promise<PgBoss> {
+  return (queueBoss ??= (async () => {
     const boss = new PgBoss(useServerConfig().databaseUrl)
     boss.on('error', (error) => console.error('[pg-boss] error', error))
     await boss.start()
-    return createExtractionQueue(boss)
+    return boss
   })().catch((error) => {
-    extractionQueue = undefined
+    queueBoss = undefined
     throw error
   }))
+}
+
+/** pg-boss producer for extraction jobs. */
+export function useExtractionQueue(): Promise<ExtractionQueue> {
+  return (extractionQueue ??= useQueueBoss()
+    .then(createExtractionQueue)
+    .catch((error) => {
+      extractionQueue = undefined
+      throw error
+    }))
 }
 
 export async function useIntake(): Promise<Intake> {
@@ -71,4 +86,27 @@ export function useDocumentEvents(): Promise<DocumentStatusListener> {
     documentEvents = undefined
     throw error
   }))
+}
+
+// --- URL intake (ticket 10) ---
+let urlFetchQueue: Promise<UrlFetchQueue> | undefined
+
+function useUrlFetchQueue(): Promise<UrlFetchQueue> {
+  return (urlFetchQueue ??= useQueueBoss()
+    .then(createUrlFetchQueue)
+    .catch((error) => {
+      urlFetchQueue = undefined
+      throw error
+    }))
+}
+
+export async function useUrlIntake(): Promise<UrlIntake> {
+  const transport = createHttpsTransport()
+  return createUrlIntake({
+    db: useDb(),
+    storage: useDocumentStorage(),
+    extractionQueue: await useExtractionQueue(),
+    fetchQueue: await useUrlFetchQueue(),
+    fetchUrl: (url, limits) => fetchUrl(url, { resolve: resolveWithSystemDns, transport, limits }),
+  })
 }
