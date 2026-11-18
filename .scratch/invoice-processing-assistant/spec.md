@@ -136,7 +136,7 @@ Checks are deterministic code with no LLM involved. Each returns pass, fail or n
 ## Pages
 
 ```
-/                              Landing (dark-only): hero + 6 cursor effects + sticky switcher
+/                              Landing (dark-only): "Journey" scroll story, How it works, FAQ
 /auth/sign-in | sign-up | forgot-password | reset-password | verify-email
 /app                           auth-guarded layout (sidebar + topbar + downloads drawer)
   /                            Dashboard: recent Batches, Invoices needing Review, usage/cost
@@ -158,15 +158,17 @@ Checks are deterministic code with no LLM involved. Each returns pass, fail or n
 - **Ledger Day** is the light variant, selectable in Settings: paper `#F7F7F5`, ink `#0B0D10`, accent `#5E7D00`.
 - Tokens are CSS variables shared by both themes.
 
-### Landing cursor effects (all six, chosen later)
-A sticky nav holds buttons: Lens · Receipt · Stamp · Particles · Ruler · Scanner · Off. The selected effect is stored in `?cursor=<name>` and remembered in localStorage. Every effect is disabled under `prefers-reduced-motion` and on coarse pointers.
+### Landing page ("Journey")
+One sample Invoice travels down the page, told with GSAP (ScrollTrigger, SplitText). Copy and sample data live in `app/lib/landing/content.ts`.
 
-1. **Lens**: a loupe over a blurred scanned invoice. Under the lens, the scan turns into highlighted JSON key-value pairs.
-2. **Receipt**: a thermal receipt prints out behind the cursor, curls, and tears off when the cursor stops.
-3. **Stamp**: each click leaves a rotated "PAID ✓" or "EXTRACTED" ink stamp with bleed texture, which fades over a few seconds.
-4. **Particles**: digits, `{ }`, `€` and `$` drift around and snap into a table grid near the cursor.
-5. **Ruler**: a ledger-ruled crosshair follows the cursor, and hovered hero text shows a field tooltip (for example `total_amount: 1,240.00`).
-6. **Scanner**: a light band follows the cursor's Y position over a document mockup. Lines it passes are digitised and turn the accent colour.
+- **Navbar** (sticky): logo, anchor links *How it works* (`#journey`) · *Features* (`#how`) · *FAQ* (`#faq`), then Sign in and Get started.
+- **Hero**: headline, lead, Get started and "See it work" buttons, and a tilted sample Invoice with floating Field tags.
+- **Journey** (`#journey`): a pinned, scroll-scrubbed stage with five chapters (Add, Extract, Check, Review, Export) and a clickable chapter rail. The model misreads the total as 1,204.00, the "subtotal + tax = total" Check flags it, and Review corrects it to 1,240.00.
+- **How it works** (`#how`): three steps (Add, Extract, Review & export) joined by a drawn path.
+- **FAQ** (`#faq`): accordion of `<details>` rows.
+- **CTA** and footer.
+
+Under `prefers-reduced-motion` nothing is pinned or scrubbed and every section shows its end state. All animations are reverted on unmount.
 
 ## Architecture
 

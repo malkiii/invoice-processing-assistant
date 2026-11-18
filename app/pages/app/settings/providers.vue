@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { AlertTriangle, CheckCircle2, Pencil, Plug, Trash2 } from '@lucide/vue'
+import { AlertTriangle, CheckCircle2, Loader2, Pencil, Plug, Trash2 } from '@lucide/vue'
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
@@ -28,9 +28,7 @@ interface Connection {
   statusMessage: string | null
 }
 type TestResult = { ok: true; model: string } | { ok: false; reason: string; message: string }
-
-const selectClass =
-  'border-input h-9 w-full rounded-md border bg-transparent px-3 text-sm shadow-xs outline-none focus-visible:border-ring focus-visible:ring-ring/50 focus-visible:ring-3 dark:bg-input/30'
+type ModelList = { ok: true; models: string[] } | { ok: false; models: []; reason: string; message: string }
 
 const { data: presets } = await useFetch<Preset[]>('/api/providers/presets', { default: () => [] })
 const { data: connections, refresh } = await useFetch<Connection[]>('/api/providers', { default: () => [] })
@@ -47,12 +45,80 @@ const formOpen = ref(false)
 const form = reactive({ kind: 'openai', name: '', apiKey: '', baseUrl: '', defaultModel: '' })
 const formError = ref<string | null>(null)
 const formPreset = computed(() => presetFor(form.kind))
+const kindOptions = computed(() => presets.value.map((p) => ({ value: p.kind, label: p.label })))
+
+/**
+ * The key is checked while the form is filled in, by fetching the provider's model list.
+ * - ok: the Default model can only be one of the listed models
+ * - unlisted: the key may work but the provider has no model list, so the id is typed
+ * - failed: the key was rejected or the host is unreachable; saving is blocked
+ */
+type KeyCheck =
+  | { status: 'idle' | 'checking' }
+  | { status: 'ok'; models: string[] }
+  | { status: 'unlisted' | 'failed'; message: string }
+const keyCheck = ref<KeyCheck>({ status: 'idle' })
+const formModels = computed(() => (keyCheck.value.status === 'ok' ? keyCheck.value.models : null))
+const canSave = computed(() => keyCheck.value.status === 'ok' || keyCheck.value.status === 'unlisted')
+
+let checkTimer: ReturnType<typeof setTimeout> | undefined
+let checkRun = 0
+
+function credentialsReady() {
+  const preset = formPreset.value
+  if (!preset) return false
+  if (preset.requiresApiKey && !form.apiKey.trim() && !editingId.value) return false
+  if (preset.requiresBaseUrl && !form.baseUrl.trim()) return false
+  return true
+}
+
+async function checkKey() {
+  clearTimeout(checkTimer)
+  const run = ++checkRun
+  if (!formOpen.value || !credentialsReady()) {
+    keyCheck.value = { status: 'idle' }
+    return
+  }
+  keyCheck.value = { status: 'checking' }
+  let result: ModelList
+  try {
+    result = await $fetch<ModelList>('/api/providers/check', {
+      method: 'POST',
+      body: { kind: form.kind, apiKey: form.apiKey, baseUrl: form.baseUrl, connectionId: editingId.value },
+    })
+  } catch (error) {
+    result = { ok: false, models: [], reason: 'invalid', message: errorMessage(error, 'Could not check the key.') }
+  }
+  if (run !== checkRun) return
+  if (result.ok) {
+    keyCheck.value = { status: 'ok', models: result.models }
+    if (!result.models.includes(form.defaultModel)) {
+      const suggested = formPreset.value?.suggestedModel
+      form.defaultModel = suggested && result.models.includes(suggested) ? suggested : ''
+    }
+  } else if (result.reason === 'error') {
+    keyCheck.value = { status: 'unlisted', message: result.message }
+  } else {
+    keyCheck.value = { status: 'failed', message: result.message }
+  }
+}
+
+function scheduleKeyCheck() {
+  clearTimeout(checkTimer)
+  checkRun++
+  keyCheck.value = { status: 'idle' }
+  checkTimer = setTimeout(checkKey, 600)
+}
+
+watch(() => [form.kind, form.apiKey, form.baseUrl], scheduleKeyCheck)
+onBeforeUnmount(() => clearTimeout(checkTimer))
 
 function openAdd() {
   editingId.value = null
   Object.assign(form, { kind: 'openai', name: '', apiKey: '', baseUrl: '', defaultModel: '' })
   formError.value = null
   formOpen.value = true
+  keyCheck.value = { status: 'idle' }
 }
 
 function openEdit(c: Connection) {
@@ -60,10 +126,13 @@ function openEdit(c: Connection) {
   Object.assign(form, { kind: c.kind, name: c.name, apiKey: '', baseUrl: c.baseUrl ?? '', defaultModel: c.defaultModel ?? '' })
   formError.value = null
   formOpen.value = true
+  // The saved key is checked right away so the model list is ready.
+  nextTick(checkKey)
 }
 
 async function saveForm() {
   formError.value = null
+  if (!canSave.value) return
   try {
     if (editingId.value) {
       await $fetch(`/api/providers/${editingId.value}`, {
@@ -138,9 +207,7 @@ function toggleModels(c: Connection) {
         <form class="grid gap-4" @submit.prevent="saveForm">
           <div class="grid gap-2">
             <Label for="kind">Provider</Label>
-            <select id="kind" v-model="form.kind" :class="selectClass" :disabled="!!editingId">
-              <option v-for="p in presets" :key="p.kind" :value="p.kind">{{ p.label }}</option>
-            </select>
+            <AppSelect id="kind" v-model="form.kind" :options="kindOptions" :disabled="!!editingId" />
           </div>
           <div class="grid gap-2">
             <Label for="name">Name</Label>
@@ -155,7 +222,20 @@ function toggleModels(c: Connection) {
               autocomplete="off"
               :required="formPreset?.requiresApiKey && !editingId"
               :placeholder="editingId ? 'Leave empty to keep the saved key' : ''"
+              @blur="checkKey"
             />
+            <p v-if="keyCheck.status === 'checking'" class="flex items-center gap-1 text-xs text-muted-foreground">
+              <Loader2 class="size-3 animate-spin" /> Checking the key…
+            </p>
+            <p v-else-if="keyCheck.status === 'ok'" class="flex items-center gap-1 text-xs text-primary">
+              <CheckCircle2 class="size-3" /> Key works. Choose one of its {{ keyCheck.models.length }} models.
+            </p>
+            <p v-else-if="keyCheck.status === 'failed'" role="alert" class="text-xs text-destructive">
+              {{ keyCheck.message }}
+            </p>
+            <p v-else-if="keyCheck.status === 'unlisted'" class="text-xs text-muted-foreground">
+              This provider did not return a model list ({{ keyCheck.message }}). Type a model id instead.
+            </p>
           </div>
           <div class="grid gap-2">
             <Label for="baseUrl">Base URL{{ formPreset?.requiresBaseUrl ? '' : ' (optional)' }}</Label>
@@ -165,20 +245,23 @@ function toggleModels(c: Connection) {
               type="url"
               :required="formPreset?.requiresBaseUrl"
               :placeholder="formPreset?.defaultBaseUrl ?? 'https://…/v1'"
+              @blur="checkKey"
             />
           </div>
           <div class="grid gap-2">
             <Label for="defaultModel">Default model</Label>
-            <Input
+            <ModelCombobox
               id="defaultModel"
               v-model="form.defaultModel"
-              :placeholder="formPreset?.suggestedModel ?? 'model id'"
-              :list="editingId ? `models-${editingId}` : undefined"
+              :models="formModels"
+              :required="!!formModels"
+              :disabled="!canSave"
+              :placeholder="formModels ? 'Choose a model' : (formPreset?.suggestedModel ?? 'model id')"
             />
           </div>
           <FormError :message="formError" />
           <div class="flex gap-2">
-            <Button type="submit">Save</Button>
+            <Button type="submit" :disabled="!canSave">Save</Button>
             <Button type="button" variant="ghost" @click="formOpen = false">Cancel</Button>
           </div>
         </form>
@@ -208,7 +291,7 @@ function toggleModels(c: Connection) {
             <Button size="sm" variant="outline" :disabled="testing === c.id" @click="test(c)">
               {{ testing === c.id ? 'Testing…' : 'Test connection' }}
             </Button>
-            <Button size="icon" variant="ghost" aria-label="Edit" @click="openEdit(c); loadModels(c)">
+            <Button size="icon" variant="ghost" aria-label="Edit" @click="openEdit(c)">
               <Pencil class="size-4" />
             </Button>
             <Button size="icon" variant="ghost" aria-label="Delete" @click="remove(c)">
@@ -228,10 +311,6 @@ function toggleModels(c: Connection) {
           {{ (testResults[c.id] as { message: string }).message }}
         </p>
 
-        <datalist :id="`models-${c.id}`">
-          <option v-for="m in models[c.id]?.models ?? []" :key="m" :value="m" />
-        </datalist>
-
         <div>
           <Button size="sm" variant="ghost" class="px-0" @click="toggleModels(c)">
             {{ modelPanel === c.id ? 'Hide models' : 'Models, capabilities and prices' }}
@@ -241,7 +320,11 @@ function toggleModels(c: Connection) {
           <p v-if="models[c.id] && !models[c.id]!.ok" class="text-xs text-muted-foreground">
             This provider did not return a model list ({{ models[c.id]!.message }}). Type a model id instead.
           </p>
-          <ProviderModelSettings :connection-id="c.id" :default-model="c.defaultModel" :models-list-id="`models-${c.id}`" />
+          <ProviderModelSettings
+            :connection-id="c.id"
+            :default-model="c.defaultModel"
+            :models="models[c.id]?.ok ? models[c.id]!.models : null"
+          />
         </template>
       </CardContent>
     </Card>

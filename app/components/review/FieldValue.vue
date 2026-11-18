@@ -54,6 +54,21 @@ function commitMoney(part: 'amount' | 'currency', event: Event) {
   commit({ amount, currency })
 }
 
+const enumOptions = computed(() => [
+  { value: '', label: '—' },
+  ...('choices' in props.field ? props.field.choices : []).map((c) => ({ value: c, label: c })),
+])
+const booleanOptions = [
+  { value: '', label: '—' },
+  { value: 'true', label: 'Yes' },
+  { value: 'false', label: 'No' },
+]
+const selectClass = computed(() => [
+  'min-w-0 bg-background',
+  props.corrected ? 'border-primary' : '',
+  props.failures.length ? 'border-destructive' : '',
+])
+
 const inputClass = computed(() => [
   'w-full min-w-0 rounded-md border bg-background px-2 text-sm focus-visible:outline-2 focus-visible:outline-ring',
   props.compact ? 'h-8' : 'h-9',
@@ -66,29 +81,26 @@ const inputClass = computed(() => [
 <template>
   <div class="grid gap-1">
     <div class="flex items-center gap-1">
-      <select
+      <AppSelect
         v-if="field.type === 'enum'"
-        :value="display(value)"
-        :class="inputClass"
+        :model-value="display(value)"
+        :options="enumOptions"
+        :class="selectClass"
+        :size="compact ? 'sm' : 'default'"
         :disabled="disabled"
         :aria-label="field.label"
-        @change="commit(($event.target as HTMLSelectElement).value || null)"
-      >
-        <option value="">—</option>
-        <option v-for="c in ('choices' in field ? field.choices : [])" :key="c" :value="c">{{ c }}</option>
-      </select>
-      <select
+        @change="commit($event || null)"
+      />
+      <AppSelect
         v-else-if="field.type === 'boolean'"
-        :value="value == null ? '' : String(value)"
-        :class="inputClass"
+        :model-value="value == null ? '' : String(value)"
+        :options="booleanOptions"
+        :class="selectClass"
+        :size="compact ? 'sm' : 'default'"
         :disabled="disabled"
         :aria-label="field.label"
-        @change="commit(({ true: true, false: false } as Record<string, boolean>)[($event.target as HTMLSelectElement).value] ?? null)"
-      >
-        <option value="">—</option>
-        <option value="true">Yes</option>
-        <option value="false">No</option>
-      </select>
+        @change="commit(({ true: true, false: false } as Record<string, boolean>)[$event] ?? null)"
+      />
       <template v-else-if="field.type === 'money'">
         <input
           :value="display(money.amount)"

@@ -16,14 +16,16 @@ interface ModelSetting {
 const props = defineProps<{
   connectionId: string
   defaultModel: string | null
-  /** id of the <datalist> holding the provider's model ids */
-  modelsListId: string
+  /** The provider's model ids, or null when it cannot list them (the id is typed instead) */
+  models: string[] | null
 }>()
 
 const capabilityLabels: Record<Capability, string> = { pdf: 'Native PDF', images: 'Images', text: 'Text only' }
 const capabilities = Object.keys(capabilityLabels) as Capability[]
-const selectClass =
-  'border-input h-9 w-full rounded-md border bg-transparent px-3 text-sm shadow-xs outline-none focus-visible:border-ring focus-visible:ring-ring/50 focus-visible:ring-3 dark:bg-input/30'
+const capabilityOptions = computed(() => [
+  { value: '' as const, label: `Built-in: ${current.value ? capabilityLabels[current.value.builtInCapability] : ''}` },
+  ...capabilities.map((cap) => ({ value: cap, label: capabilityLabels[cap] })),
+])
 
 const endpoint = `/api/providers/${props.connectionId}/model-settings` as string
 const modelId = ref('')
@@ -76,21 +78,18 @@ onMounted(async () => {
     <form class="grid gap-4" @submit.prevent="save">
       <div class="grid gap-2">
         <Label :for="`model-${connectionId}`">Model</Label>
-        <Input
+        <ModelCombobox
           :id="`model-${connectionId}`"
           :model-value="modelId"
-          :list="modelsListId"
+          :models="models"
           placeholder="model id"
-          @change="select(($event.target as HTMLInputElement).value)"
+          @change="select"
         />
       </div>
       <template v-if="current">
         <div class="grid gap-2">
           <Label :for="`cap-${connectionId}`">Model Capability</Label>
-          <select :id="`cap-${connectionId}`" v-model="capabilityOverride" :class="selectClass">
-            <option value="">Built-in: {{ capabilityLabels[current.builtInCapability] }}</option>
-            <option v-for="cap in capabilities" :key="cap" :value="cap">{{ capabilityLabels[cap] }}</option>
-          </select>
+          <AppSelect :id="`cap-${connectionId}`" v-model="capabilityOverride" :options="capabilityOptions" />
         </div>
         <div class="grid grid-cols-2 gap-4">
           <div class="grid gap-2">

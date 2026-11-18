@@ -216,6 +216,37 @@ describe('model lists', () => {
   })
 })
 
+describe('checking credentials before saving', () => {
+  it('lists the models a working key can use', async () => {
+    const before = await connections.list('alice')
+    const result = await connections.checkCredentials('alice', { kind: 'openai', apiKey: http.validKey })
+    expect(result).toEqual({ ok: true, models: ['model-a', 'model-b'] })
+    expect(http.requests.at(-1)?.url).toMatch(/api\.openai\.com\/v1\/models$/)
+    expect(await connections.list('alice')).toEqual(before)
+  })
+
+  it('reports a rejected key as unauthorized', async () => {
+    expect(await connections.checkCredentials('alice', { kind: 'anthropic', apiKey: 'sk-wrong-key-0000' })).toEqual({
+      ok: false,
+      models: [],
+      reason: 'unauthorized',
+      message: 'The provider rejected the API key (401).',
+    })
+  })
+
+  it("uses the saved key of the User's connection when the key field is left empty", async () => {
+    const saved = await connections.create('alice', { kind: 'mistral', name: 'Saved', apiKey: http.validKey })
+    expect(await connections.checkCredentials('alice', { kind: 'mistral', connectionId: saved.id })).toEqual({
+      ok: true,
+      models: ['model-a', 'model-b'],
+    })
+    expect(await connections.checkCredentials('bob', { kind: 'mistral', connectionId: saved.id })).toMatchObject({
+      ok: false,
+      reason: 'not-found',
+    })
+  })
+})
+
 describe('model settings', () => {
   it('start from the built-in Model Capability table and accept overrides and prices', async () => {
     const created = await connections.create('alice', {

@@ -1,7 +1,8 @@
 <script setup lang="ts">
-import { Download, FileText, LayoutDashboard, Layers, LayoutTemplate, LogOut, Receipt, Moon, Settings, ShieldCheck, Sun, Upload, UserRound } from '@lucide/vue'
+import { Download, FileText, LayoutDashboard, Layers, LayoutTemplate, LogOut, Menu, Receipt, Moon, Settings, ShieldCheck, Sun, Upload, UserRound } from '@lucide/vue'
 import { authClient } from '~/lib/auth-client'
 import { Button } from '@/components/ui/button'
+import { Sheet, SheetContent, SheetDescription, SheetTitle } from '@/components/ui/sheet'
 
 const { user, refresh } = useAuthSession()
 const { theme, toggle } = useTheme()
@@ -18,6 +19,11 @@ const nav = computed(() => [
   { label: 'Settings', to: '/app/settings/profile', icon: Settings, exact: false },
   ...(user.value?.role === 'admin' ? [{ label: 'Admin', to: '/admin', icon: ShieldCheck, exact: false }] : []),
 ])
+
+// The sidebar is hidden below md; on small screens the same nav lives in a slide-out sheet.
+const mobileNavOpen = ref(false)
+const route = useRoute()
+watch(() => route.fullPath, () => { mobileNavOpen.value = false })
 
 async function signOut() {
   await authClient.signOut()
@@ -48,8 +54,42 @@ async function signOut() {
       </nav>
     </aside>
 
+    <Sheet v-model:open="mobileNavOpen">
+      <SheetContent side="left" class="w-64 gap-0 bg-sidebar p-0 text-sidebar-foreground">
+        <SheetTitle class="flex h-14 items-center gap-2 px-4 text-sm font-semibold">
+          <span class="size-2.5 rounded-full bg-primary" aria-hidden="true" />
+          Invoice Assistant
+        </SheetTitle>
+        <SheetDescription class="sr-only">Main navigation</SheetDescription>
+        <nav class="grid gap-1 px-2 py-2" aria-label="Main">
+          <NuxtLink
+            v-for="item in nav"
+            :key="item.to"
+            :to="item.to"
+            class="flex items-center gap-2 rounded-md px-3 py-2 text-sm text-muted-foreground hover:bg-sidebar-accent hover:text-sidebar-accent-foreground"
+            :exact-active-class="item.exact ? '!bg-sidebar-accent !text-sidebar-accent-foreground' : undefined"
+            :active-class="item.exact ? undefined : '!bg-sidebar-accent !text-sidebar-accent-foreground'"
+          >
+            <component :is="item.icon" class="size-4" />
+            {{ item.label }}
+          </NuxtLink>
+        </nav>
+        <div class="mt-auto flex items-center gap-2 border-t px-4 py-3 text-sm">
+          <UserRound class="size-4 shrink-0 text-muted-foreground" />
+          <span class="truncate">{{ user?.email }}</span>
+        </div>
+      </SheetContent>
+    </Sheet>
+
     <div class="flex min-w-0 flex-1 flex-col">
-      <header class="flex h-14 items-center gap-2 border-b px-4">
+      <header class="flex h-14 items-center gap-1 border-b px-2 sm:gap-2 sm:px-4">
+        <Button variant="ghost" size="icon" class="md:hidden" aria-label="Open menu" @click="mobileNavOpen = true">
+          <Menu class="size-5" />
+        </Button>
+        <NuxtLink to="/app" class="flex items-center gap-2 text-sm font-semibold md:hidden">
+          <span class="size-2.5 rounded-full bg-primary" aria-hidden="true" />
+          <span class="hidden min-[400px]:inline">Invoice Assistant</span>
+        </NuxtLink>
         <div class="flex-1" />
         <Button variant="ghost" size="icon" :aria-label="`Switch to Ledger ${theme === 'noir' ? 'Day' : 'Noir'}`" @click="toggle">
           <Sun v-if="theme === 'noir'" class="size-4" />
@@ -59,19 +99,19 @@ async function signOut() {
           <Download class="size-4" />
         </Button>
         <div class="flex items-center gap-2 pl-2 text-sm">
-          <UserRound class="size-4 text-muted-foreground" />
-          <span data-testid="user-email">{{ user?.email }}</span>
+          <UserRound class="hidden size-4 text-muted-foreground sm:block" />
+          <span data-testid="user-email" class="hidden sm:inline">{{ user?.email }}</span>
           <span v-if="user?.role === 'admin'" class="inline-flex items-center gap-1 rounded bg-primary/15 px-1.5 py-0.5 text-xs text-primary">
             <ShieldCheck class="size-3" /> Admin
           </span>
         </div>
-        <Button variant="ghost" size="sm" @click="signOut">
-          <LogOut class="size-4" /> Sign out
+        <Button variant="ghost" size="sm" aria-label="Sign out" @click="signOut">
+          <LogOut class="size-4" /> <span class="hidden sm:inline">Sign out</span>
         </Button>
       </header>
       <ProviderBrokenBanner />
 
-      <main class="flex-1 p-6">
+      <main class="min-w-0 flex-1 p-4 md:p-6">
         <slot />
       </main>
     </div>
