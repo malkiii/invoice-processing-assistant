@@ -1,6 +1,6 @@
 # 09 — Templates editor
 
-Status: ready-for-agent
+Status: resolved
 Blocked by: 05
 
 ## What

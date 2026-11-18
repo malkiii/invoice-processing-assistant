@@ -8,6 +8,7 @@ export default defineConfig({
           name: 'unit',
           include: ['server/**/*.test.ts', 'tests/unit/**/*.test.ts'],
           environment: 'node',
+          setupFiles: ['tests/support/fail-on-ai-sdk-deprecations.ts'],
         },
       },
       {
@@ -15,6 +16,7 @@ export default defineConfig({
           name: 'integration',
           include: ['tests/integration/**/*.test.ts'],
           environment: 'node',
+          setupFiles: ['tests/support/fail-on-ai-sdk-deprecations.ts'],
           testTimeout: 60_000,
           hookTimeout: 180_000,
         },

@@ -1,6 +1,6 @@
 # 03 — Provider Connections (bring your own key) and global defaults
 
-Status: ready-for-agent
+Status: resolved
 Blocked by: 01
 
 ## What

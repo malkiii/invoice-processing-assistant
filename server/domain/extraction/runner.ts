@@ -154,7 +154,7 @@ export function createExtractionRunner(deps: ExtractionRunnerDeps): ExtractionRu
       if (!model) throw new DocumentFailure('The Provider Connection no longer exists.')
 
       const started = Date.now()
-      const generated = await generateInvoices({ model, schema, fields: template.fields, content, sleep: deps.sleep })
+      const generated = await generateInvoices({ model, schema, fields: template.fields, content, sleep: deps.sleep, log })
       const durationMs = Date.now() - started
 
       const extractionId = await db.transaction(async (tx) => {

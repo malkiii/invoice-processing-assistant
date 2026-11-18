@@ -1,6 +1,6 @@
 # 05 — Extraction worker with the default Template
 
-Status: ready-for-agent
+Status: resolved
 Blocked by: 03, 04
 
 ## What

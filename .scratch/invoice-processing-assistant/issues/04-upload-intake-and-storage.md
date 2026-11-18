@@ -1,6 +1,6 @@
 # 04 — Upload intake (file, folder, drag-and-drop) and object storage
 
-Status: ready-for-agent
+Status: resolved
 Blocked by: 01
 
 ## What

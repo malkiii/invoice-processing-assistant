@@ -3,7 +3,7 @@
  * PDFs and images go natively to capable models; everything else becomes markdown text.
  */
 import { Readability } from '@mozilla/readability'
-import type { FilePart, ImagePart, TextPart } from 'ai'
+import type { FilePart, TextPart } from 'ai'
 import { parseHTML } from 'linkedom'
 import mammoth from 'mammoth'
 import TurndownService from 'turndown'
@@ -12,7 +12,12 @@ import { extractText, getDocumentProxy } from 'unpdf'
 import { MIME_TYPES, type DocumentFormat } from '../document-inspection'
 import type { ModelCapability } from '../model-capability'
 
-export type InputPart = TextPart | ImagePart | FilePart
+export type InputPart = TextPart | FilePart
+
+/** Inline bytes as a file part; AI SDK 7 deprecates the separate "image" part type. */
+function filePart(bytes: Uint8Array, mediaType: string): FilePart {
+  return { type: 'file', data: { type: 'data', data: bytes }, mediaType }
+}
 
 /** Renders every page of a PDF to a PNG. */
 export type PdfRasterizer = (pdf: Uint8Array) => Promise<Uint8Array[]>
@@ -111,12 +116,12 @@ export async function prepareInput(
 ): Promise<InputPart[]> {
   switch (doc.format) {
     case 'pdf': {
-      if (capability === 'pdf') return [{ type: 'file', data: doc.bytes, mediaType: MIME_TYPES.pdf }]
+      if (capability === 'pdf') return [filePart(doc.bytes, MIME_TYPES.pdf)]
       if (capability === 'images') {
         const pages = await deps.rasterizePdf(doc.bytes)
         return [
           { type: 'text', text: `The document is a PDF of ${pages.length} page(s), shown as one image per page.` },
-          ...pages.map((image): ImagePart => ({ type: 'image', image, mediaType: 'image/png' })),
+          ...pages.map((image) => filePart(image, 'image/png')),
         ]
       }
       let pages: string[]
@@ -139,7 +144,7 @@ export async function prepareInput(
       if (capability === 'text') {
         throw new InputPreparationError('This model is text-only and cannot read images. Re-run it with a vision model.')
       }
-      return [{ type: 'image', image: doc.bytes, mediaType: MIME_TYPES[doc.format] }]
+      return [filePart(doc.bytes, MIME_TYPES[doc.format])]
     case 'docx':
       return [asText('The document is a Word file, converted to markdown:', limitText(await docxToMarkdown(doc.bytes)))]
     case 'html': {

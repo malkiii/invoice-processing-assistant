@@ -9,6 +9,7 @@ import { createOpenAI } from '@ai-sdk/openai'
 import { createOpenAICompatible } from '@ai-sdk/openai-compatible'
 import { createOpenRouter } from '@openrouter/ai-sdk-provider'
 import { APICallError, generateText, RetryError, type LanguageModel } from 'ai'
+import { withProviderDetail } from '../domain/provider-error'
 import { PROVIDER_PRESETS, type ProviderKind } from '../domain/provider-presets'
 
 /** Decrypted credentials. Never leaves the server. */
@@ -63,12 +64,15 @@ export function classifyProviderError(error: unknown): ProviderFailure {
   const cause = RetryError.isInstance(error) ? error.lastError : error
   if (APICallError.isInstance(cause)) {
     if (cause.statusCode === 401 || cause.statusCode === 403) {
-      return { reason: 'unauthorized', message: `The provider rejected the API key (${cause.statusCode}).` }
+      return {
+        reason: 'unauthorized',
+        message: withProviderDetail(`The provider rejected the API key (${cause.statusCode}).`, cause),
+      }
     }
     if (cause.statusCode === undefined) {
       return { reason: 'unreachable', message: 'Could not reach the provider.' }
     }
-    return { reason: 'error', message: `The provider returned an error (${cause.statusCode}).` }
+    return { reason: 'error', message: withProviderDetail(`The provider returned an error (${cause.statusCode}).`, cause) }
   }
   if (cause instanceof ProviderHttpError) {
     return cause.status === 401 || cause.status === 403

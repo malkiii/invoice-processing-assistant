@@ -8,6 +8,7 @@ import type { LanguageModel } from 'ai'
 import { decryptSecret, encryptSecret, maskSecret } from '../domain/crypto'
 import type { ModelPrice } from '../domain/cost'
 import { builtInModelCapability, type ModelCapability } from '../domain/model-capability'
+import { providerErrorLogFields } from '../domain/provider-error'
 import { isProviderKind, PROVIDER_PRESETS, type ProviderKind } from '../domain/provider-presets'
 import type { Database } from '../db/client'
 import { providerConnection, providerModelSetting, type ProviderConnectionStatus } from '../db/schema'
@@ -113,9 +114,15 @@ function validateBaseUrl(baseUrl: string | null) {
   }
 }
 
-export function createProviderConnections(deps: { db: Database; encryptionKey: Buffer; fetch?: typeof fetch }) {
+export function createProviderConnections(deps: {
+  db: Database
+  encryptionKey: Buffer
+  fetch?: typeof fetch
+  log?: Pick<Console, 'error'>
+}) {
   const { db, encryptionKey } = deps
   const fetch = deps.fetch ?? globalThis.fetch
+  const log = deps.log ?? console
 
   const owned = (userId: string, id: string) =>
     and(eq(providerConnection.userId, userId), eq(providerConnection.id, id))
@@ -244,6 +251,7 @@ export function createProviderConnections(deps: { db: Database; encryptionKey: B
         await markOk(id)
         return { ok: true, model }
       } catch (error) {
+        log.error(`[providers] connection test failed (${found.creds.kind}, model ${model})`, providerErrorLogFields(error))
         const failure = classifyProviderError(error)
         if (failure.reason === 'unauthorized') await markBroken(id, failure.message)
         return { ok: false, ...failure }

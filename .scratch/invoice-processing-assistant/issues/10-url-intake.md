@@ -1,6 +1,6 @@
 # 10 — URL intake
 
-Status: ready-for-agent
+Status: resolved
 Blocked by: 04
 
 ## What

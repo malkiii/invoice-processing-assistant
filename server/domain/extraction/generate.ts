@@ -1,11 +1,21 @@
 /**
- * The model call of an Extraction: `generateObject` with the compiled Template schema, and the
- * retry policy from the spec ("Extraction pipeline" step 4):
+ * The model call of an Extraction: `generateText` with `Output.object` over the compiled Template
+ * schema, and the retry policy from the spec ("Extraction pipeline" step 4):
  * - 429 / 5xx / unreachable: up to 3 attempts with exponential backoff
  * - schema mismatch: one repair attempt that feeds the validation error back to the model
  * - 401 / 403: no retry; the caller marks the Provider Connection broken
  */
-import { APICallError, generateObject, NoObjectGeneratedError, RetryError, type LanguageModel, type ModelMessage } from 'ai'
+import {
+  APICallError,
+  generateText,
+  NoObjectGeneratedError,
+  NoOutputGeneratedError,
+  Output,
+  RetryError,
+  type LanguageModel,
+  type ModelMessage,
+} from 'ai'
+import { providerErrorLogFields, withProviderDetail } from '../provider-error'
 import type { InvoicesSchema } from '../template/compile'
 import { isGroupField, type Field, type InvoiceValues } from '../template/fields'
 import type { InputPart } from './input'
@@ -22,8 +32,11 @@ export interface GeneratedInvoices {
 
 /** The provider rejected the credentials. Never retried. */
 export class ProviderUnauthorizedError extends Error {
-  constructor(readonly statusCode: number) {
-    super(`The provider rejected the API key (${statusCode}).`)
+  constructor(
+    readonly statusCode: number,
+    cause?: unknown,
+  ) {
+    super(withProviderDetail(`The provider rejected the API key (${statusCode}).`, cause))
     this.name = 'ProviderUnauthorizedError'
   }
 }
@@ -49,6 +62,8 @@ export interface GenerateInvoicesOptions {
   sleep?: (ms: number) => Promise<void>
   /** Per model call. */
   timeoutMs?: number
+  /** Where failed model calls are logged. */
+  log?: Pick<Console, 'error'>
 }
 
 export const MAX_ATTEMPTS = 3
@@ -99,7 +114,7 @@ function describeFailure(error: unknown): string {
     return `The model call failed: ${error instanceof Error ? error.message : String(error)}`.slice(0, 500)
   }
   if (status === undefined) return 'Could not reach the provider.'
-  return `The provider returned an error (${status}).`
+  return withProviderDetail(`The provider returned an error (${status}).`, error)
 }
 
 function addUsage(totals: TokenTotals, usage: { inputTokens?: number; outputTokens?: number } | undefined) {
@@ -121,17 +136,18 @@ export async function generateInvoices(options: GenerateInvoicesOptions): Promis
   const { model, schema, fields, content } = options
   const sleep = options.sleep ?? defaultSleep
   const timeoutMs = options.timeoutMs ?? DEFAULT_TIMEOUT_MS
+  const log = options.log ?? console
   const usage: TokenTotals = { inputTokens: 0, outputTokens: 0 }
-  const system = systemPrompt(fields)
+  const instructions = systemPrompt(fields)
 
-  async function call(messages: ModelMessage[]) {
+  async function call(messages: ModelMessage[]): Promise<{ invoices: InvoiceValues[]; usage: TokenTotals }> {
     for (let attempt = 1; ; attempt++) {
+      let result
       try {
-        return await generateObject({
+        result = await generateText({
           model,
-          schema,
-          schemaName: 'invoices',
-          system,
+          output: Output.object({ schema, name: 'invoices' }),
+          instructions,
           messages,
           maxRetries: 0,
           temperature: 0,
@@ -139,12 +155,24 @@ export async function generateInvoices(options: GenerateInvoicesOptions): Promis
         })
       } catch (error) {
         if (NoObjectGeneratedError.isInstance(error)) throw error
+        log.error(`[extraction] model call failed (attempt ${attempt}/${MAX_ATTEMPTS})`, providerErrorLogFields(error))
         const status = statusOf(error)
-        if (status === 401 || status === 403) throw new ProviderUnauthorizedError(status)
+        if (status === 401 || status === 403) throw new ProviderUnauthorizedError(status, error)
         if (!isRetryable(error) || attempt >= MAX_ATTEMPTS) {
           throw new ExtractionCallError(describeFailure(error), usage)
         }
         await sleep(BACKOFF_BASE_MS * 2 ** (attempt - 1) + Math.floor(Math.random() * 250))
+        continue
+      }
+      const callUsage = { inputTokens: result.usage.inputTokens ?? 0, outputTokens: result.usage.outputTokens ?? 0 }
+      try {
+        // `output` is a getter that throws when the model stopped without an answer (e.g. empty
+        // response at the token limit); invalid JSON is thrown by generateText itself, above.
+        return { invoices: result.output.invoices, usage: callUsage }
+      } catch (error) {
+        if (!NoOutputGeneratedError.isInstance(error)) throw error
+        addUsage(usage, callUsage)
+        throw new ExtractionCallError(`The model returned no answer (finish reason: ${result.finishReason}).`, usage)
       }
     }
   }
@@ -153,7 +181,7 @@ export async function generateInvoices(options: GenerateInvoicesOptions): Promis
   try {
     const result = await call(messages)
     addUsage(usage, result.usage)
-    return { invoices: result.object.invoices, usage }
+    return { invoices: result.invoices, usage }
   } catch (error) {
     if (!NoObjectGeneratedError.isInstance(error)) throw error
     addUsage(usage, error.usage)
@@ -171,7 +199,7 @@ export async function generateInvoices(options: GenerateInvoicesOptions): Promis
     try {
       const result = await call(repair)
       addUsage(usage, result.usage)
-      return { invoices: result.object.invoices, usage }
+      return { invoices: result.invoices, usage }
     } catch (repairError) {
       if (!NoObjectGeneratedError.isInstance(repairError)) throw repairError
       addUsage(usage, repairError.usage)

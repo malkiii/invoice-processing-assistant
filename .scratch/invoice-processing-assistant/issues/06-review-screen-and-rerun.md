@@ -1,6 +1,6 @@
 # 06 — Review screen, Corrected Values, Reviewed state, Re-run
 
-Status: ready-for-agent
+Status: resolved
 Blocked by: 05
 
 ## What

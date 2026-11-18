@@ -21,7 +21,7 @@ describe('prepareInput', () => {
   it('sends a PDF natively to a PDF-capable model', async () => {
     const bytes = await makeTextPdf([['Invoice INV-1']])
     const parts = await prepareInput({ bytes, format: 'pdf' }, 'pdf', { rasterizePdf: noRasterizer })
-    expect(parts).toEqual([{ type: 'file', data: bytes, mediaType: 'application/pdf' }])
+    expect(parts).toEqual([{ type: 'file', data: { type: 'data', data: bytes }, mediaType: 'application/pdf' }])
   })
 
   it('rasterises a PDF into one image per page for a vision model', async () => {
@@ -29,9 +29,9 @@ describe('prepareInput', () => {
     const rasterizePdf = vi.fn<PdfRasterizer>(async () => [PNG, PNG])
     const parts = await prepareInput({ bytes, format: 'pdf' }, 'images', { rasterizePdf })
     expect(rasterizePdf).toHaveBeenCalledWith(bytes)
-    expect(parts.filter((p) => p.type === 'image')).toEqual([
-      { type: 'image', image: PNG, mediaType: 'image/png' },
-      { type: 'image', image: PNG, mediaType: 'image/png' },
+    expect(parts.filter((p) => p.type === 'file')).toEqual([
+      { type: 'file', data: { type: 'data', data: PNG }, mediaType: 'image/png' },
+      { type: 'file', data: { type: 'data', data: PNG }, mediaType: 'image/png' },
     ])
   })
 
@@ -56,7 +56,7 @@ describe('prepareInput', () => {
   it('sends images natively to PDF- and image-capable models', async () => {
     for (const capability of ['pdf', 'images'] as const) {
       const parts = await prepareInput({ bytes: PNG, format: 'png' }, capability, { rasterizePdf: noRasterizer })
-      expect(parts).toEqual([{ type: 'image', image: PNG, mediaType: 'image/png' }])
+      expect(parts).toEqual([{ type: 'file', data: { type: 'data', data: PNG }, mediaType: 'image/png' }])
     }
   })
 

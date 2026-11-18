@@ -13,8 +13,10 @@ const schema = compileTemplate(fields)
 const content = [{ type: 'text' as const, text: 'Invoice A-1, total 10' }]
 const noSleep = vi.fn(async () => {})
 
-const run = (model: ReturnType<typeof fakeModel>, sleep = noSleep) =>
-  generateInvoices({ model, schema, fields, content, sleep })
+const silent = { error: () => {} }
+
+const run = (model: ReturnType<typeof fakeModel>, sleep = noSleep, log: Pick<Console, 'error'> = silent) =>
+  generateInvoices({ model, schema, fields, content, sleep, log })
 
 describe('generateInvoices', () => {
   it('returns every Invoice the model found, with token usage', async () => {
@@ -58,6 +60,21 @@ describe('generateInvoices', () => {
     const model = fakeModel([httpError(401), reply({ invoices: [] })])
     await expect(run(model)).rejects.toThrow(ProviderUnauthorizedError)
     expect(model.doGenerateCalls).toHaveLength(1)
+  })
+
+  it("shows the provider's own message and logs every failed call", async () => {
+    const log = { error: vi.fn() }
+    const model = fakeModel([httpError(503), httpError(404)])
+    await expect(run(model, noSleep, log)).rejects.toThrow('The provider returned an error (404): scripted')
+    expect(log.error).toHaveBeenCalledTimes(2)
+    expect(log.error).toHaveBeenLastCalledWith(
+      '[extraction] model call failed (attempt 2/3)',
+      expect.objectContaining({ statusCode: 404, responseBody: '{"error":"scripted"}' }),
+    )
+  })
+
+  it('includes the provider message when the key is rejected', async () => {
+    await expect(run(fakeModel([httpError(401)]))).rejects.toThrow('The provider rejected the API key (401): scripted')
   })
 
   it('does not retry other client errors', async () => {

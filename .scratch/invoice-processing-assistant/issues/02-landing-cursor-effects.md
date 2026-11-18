@@ -1,6 +1,6 @@
 # 02 — Landing page ("Journey")
 
-Status: ready-for-agent
+Status: resolved
 Blocked by: 01
 
 ## What

@@ -1,6 +1,6 @@
 # 08 — Exports (CSV, XLSX, JSON) and downloads drawer
 
-Status: ready-for-agent
+Status: resolved
 Blocked by: 06
 
 ## What

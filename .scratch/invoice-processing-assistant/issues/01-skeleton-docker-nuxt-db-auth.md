@@ -1,6 +1,6 @@
 # 01 — Skeleton: Docker, Nuxt, Drizzle, Better Auth, Admin bootstrap
 
-Status: ready-for-agent
+Status: resolved
 Blocked by: none
 
 ## What
