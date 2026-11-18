@@ -2,7 +2,6 @@
 import { TriangleAlert } from '@lucide/vue'
 import { Button } from '@/components/ui/button'
 import { Label } from '@/components/ui/label'
-import { Input } from '@/components/ui/input'
 
 /**
  * Re-run (spec "Re-extraction", ADR 0005): pick a Provider Connection, model and Template,
@@ -18,12 +17,18 @@ interface TemplateItem { id: string; name: string; isDefault?: boolean }
 const dialog = ref<HTMLDialogElement>()
 const connections = ref<Connection[]>([])
 const templates = ref<TemplateItem[]>([])
-const models = ref<string[]>([])
+const models = ref<string[] | null>(null)
 const hasCorrections = ref(false)
 const connectionId = ref('')
 const modelId = ref('')
 const templateId = ref('')
 const error = ref('')
+const connectionOptions = computed(() =>
+  connections.value.map((c) => ({ value: c.id, label: `${c.name} (${c.kind})${c.status === 'broken' ? ' — broken' : ''}` })),
+)
+const templateOptions = computed(() =>
+  templates.value.map((t) => ({ value: t.id, label: `${t.name}${t.isDefault ? ' (default)' : ''}` })),
+)
 const busy = ref(false)
 let defaults: { defaultConnectionId: string | null; defaultModel: string | null } = { defaultConnectionId: null, defaultModel: null }
 
@@ -47,10 +52,12 @@ async function load() {
 function pickDefaultModel() {
   const conn = connections.value.find((c) => c.id === connectionId.value)
   modelId.value = (conn && conn.id === defaults.defaultConnectionId ? defaults.defaultModel : null) ?? conn?.defaultModel ?? ''
-  models.value = []
+  models.value = null
   if (conn) {
-    $fetch<{ models: string[] }>(`/api/providers/${conn.id}/models`)
-      .then((r) => (models.value = r.models))
+    $fetch<{ ok: boolean; models: string[] }>(`/api/providers/${conn.id}/models`)
+      .then((r) => {
+        if (connectionId.value === conn.id) models.value = r.ok ? r.models : null
+      })
       .catch(() => {})
   }
 }
@@ -109,11 +116,13 @@ async function submit() {
 
       <div class="grid gap-1.5">
         <Label for="rerun-connection">Provider Connection</Label>
-        <select id="rerun-connection" v-model="connectionId" class="h-9 rounded-md border bg-background px-2 text-sm" @change="pickDefaultModel">
-          <option v-for="c in connections" :key="c.id" :value="c.id">
-            {{ c.name }} ({{ c.kind }}){{ c.status === 'broken' ? ' — broken' : '' }}
-          </option>
-        </select>
+        <AppSelect
+          id="rerun-connection"
+          v-model="connectionId"
+          :options="connectionOptions"
+          disable-portal
+          @change="pickDefaultModel"
+        />
         <p v-if="!connections.length" class="text-sm text-muted-foreground">
           Add one in <NuxtLink to="/app/settings/providers" class="underline">Settings → Providers</NuxtLink>.
         </p>
@@ -121,17 +130,12 @@ async function submit() {
 
       <div class="grid gap-1.5">
         <Label for="rerun-model">Model</Label>
-        <Input id="rerun-model" v-model="modelId" list="rerun-models" placeholder="Model id" />
-        <datalist id="rerun-models">
-          <option v-for="m in models" :key="m" :value="m" />
-        </datalist>
+        <ModelCombobox id="rerun-model" v-model="modelId" :models="models" placeholder="Model id" disable-portal />
       </div>
 
       <div class="grid gap-1.5">
         <Label for="rerun-template">Template</Label>
-        <select id="rerun-template" v-model="templateId" class="h-9 rounded-md border bg-background px-2 text-sm">
-          <option v-for="t in templates" :key="t.id" :value="t.id">{{ t.name }}{{ t.isDefault ? ' (default)' : '' }}</option>
-        </select>
+        <AppSelect id="rerun-template" v-model="templateId" :options="templateOptions" disable-portal />
       </div>
 
       <p v-if="error" class="text-sm text-destructive" role="alert">{{ error }}</p>

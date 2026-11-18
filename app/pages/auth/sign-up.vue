@@ -14,11 +14,17 @@ const inviteToken = typeof route.query.invite === 'string' ? route.query.invite 
 const invitedEmail = typeof route.query.email === 'string' ? route.query.email : ''
 
 const form = reactive({ name: '', email: invitedEmail, password: '' })
+const confirmPassword = ref('')
+const mismatch = computed(() => confirmPassword.value !== '' && confirmPassword.value !== form.password)
 const error = ref<string | null>(null)
 const pending = ref(false)
 const { refresh } = useAuthSession()
 
 async function submit() {
+  if (form.password !== confirmPassword.value) {
+    error.value = 'The passwords do not match.'
+    return
+  }
   pending.value = true
   error.value = null
   // `inviteToken` is read by the server's sign-up hook; it is not a Better Auth field.
@@ -57,7 +63,20 @@ async function submit() {
         </div>
         <div class="grid gap-2">
           <Label for="password">Password</Label>
-          <Input id="password" v-model="form.password" type="password" autocomplete="new-password" minlength="8" required />
+          <PasswordInput id="password" v-model="form.password" autocomplete="new-password" minlength="8" required />
+        </div>
+        <div class="grid gap-2">
+          <Label for="confirm-password">Confirm password</Label>
+          <PasswordInput
+            id="confirm-password"
+            v-model="confirmPassword"
+            autocomplete="new-password"
+            minlength="8"
+            required
+            :aria-invalid="mismatch || undefined"
+            aria-describedby="confirm-password-hint"
+          />
+          <p v-if="mismatch" id="confirm-password-hint" class="text-xs text-destructive">The passwords do not match.</p>
         </div>
         <FormError :message="error" />
         <Button type="submit" :disabled="pending">Create account</Button>

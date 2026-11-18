@@ -169,10 +169,14 @@ function statusClass(status: string) {
         <form class="grid max-w-md gap-4" @submit.prevent="saveSettings">
           <div class="grid gap-2">
             <Label for="policy">Sign-up policy</Label>
-            <select id="policy" v-model="form.signUpPolicy" class="h-9 rounded-md border bg-background px-3 text-sm">
-              <option value="open">Open: anyone can sign up</option>
-              <option value="invite-only">Invite-only</option>
-            </select>
+            <AppSelect
+              id="policy"
+              v-model="form.signUpPolicy"
+              :options="[
+                { value: 'open', label: 'Open: anyone can sign up' },
+                { value: 'invite-only', label: 'Invite-only' },
+              ]"
+            />
           </div>
           <div class="grid gap-2">
             <Label for="max-mb">Max Document size (MB)</Label>

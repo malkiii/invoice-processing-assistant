@@ -53,7 +53,18 @@ export type ConnectionTestResult =
   | { ok: true; model: string }
   | { ok: false; reason: ProviderFailureReason | 'no-model' | 'not-found'; message: string }
 
-export type ModelListResult = { ok: true; models: string[] } | { ok: false; models: []; message: string }
+export type ModelListResult =
+  | { ok: true; models: string[] }
+  | { ok: false; models: []; reason: ProviderFailureReason | 'not-found'; message: string }
+
+/** Credentials typed into the Provider Connection form, before they are saved. */
+export interface CredentialsCheck {
+  kind: ProviderKind
+  apiKey?: string | null
+  baseUrl?: string | null
+  /** When editing: an empty key field means "use this connection's saved key". */
+  connectionId?: string | null
+}
 
 export interface ModelSettingView {
   modelId: string
@@ -69,6 +80,8 @@ export interface ModelSettingChanges {
 }
 
 export class ProviderConnectionInputError extends Error {}
+
+const notFound = (): ModelListResult => ({ ok: false, models: [], reason: 'not-found', message: 'Provider Connection not found.' })
 
 const viewColumns = {
   id: providerConnection.id,
@@ -147,6 +160,14 @@ export function createProviderConnections(deps: { db: Database; encryptionKey: B
       .update(providerConnection)
       .set({ status: 'ok', statusMessage: null })
       .where(eq(providerConnection.id, id))
+  }
+
+  async function modelList(creds: ProviderCredentials): Promise<ModelListResult> {
+    try {
+      return { ok: true, models: await fetchModelIds(creds, fetch) }
+    } catch (error) {
+      return { ok: false, models: [], ...classifyProviderError(error) }
+    }
   }
 
   return {
@@ -231,12 +252,21 @@ export function createProviderConnections(deps: { db: Database; encryptionKey: B
 
     async listModels(userId: string, id: string): Promise<ModelListResult> {
       const found = await credentials(userId, id)
-      if (!found) return { ok: false, models: [], message: 'Provider Connection not found.' }
-      try {
-        return { ok: true, models: await fetchModelIds(found.creds, fetch) }
-      } catch (error) {
-        return { ok: false, models: [], message: classifyProviderError(error).message }
+      if (!found) return notFound()
+      return modelList(found.creds)
+    },
+
+    /** Fetches the model list with credentials that are not saved yet, so the form can offer only working models. */
+    async checkCredentials(userId: string, input: CredentialsCheck): Promise<ModelListResult> {
+      let apiKey = clean(input.apiKey)
+      if (!apiKey && input.connectionId) {
+        const found = await credentials(userId, input.connectionId)
+        if (!found) return notFound()
+        apiKey = found.creds.apiKey
       }
+      const baseUrl = clean(input.baseUrl)
+      validateBaseUrl(baseUrl)
+      return modelList({ kind: input.kind, apiKey, baseUrl })
     },
 
     /** For the worker or a server route making an LLM call. Returns null if the User does not own it. */

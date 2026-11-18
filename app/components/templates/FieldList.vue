@@ -11,6 +11,7 @@ import { FIELD_TYPES, MAX_FIELD_DEPTH, SCALAR_FIELD_TYPES } from '~~/server/doma
 const props = defineProps<{ fields: DraftField[]; depth: number; readonly?: boolean }>()
 
 const fieldTypes = computed(() => (props.depth >= MAX_FIELD_DEPTH ? SCALAR_FIELD_TYPES : FIELD_TYPES))
+const fieldTypeOptions = computed(() => fieldTypes.value.map((t) => ({ value: t, label: FIELD_TYPE_LABELS[t] })))
 const inputClass =
   'border-input w-full rounded-md border bg-transparent px-3 py-2 text-sm shadow-xs outline-none focus-visible:border-ring focus-visible:ring-ring/50 focus-visible:ring-3 dark:bg-input/30 disabled:opacity-70'
 
@@ -85,9 +86,7 @@ function onType(field: DraftField) {
           </label>
           <label class="grid gap-1 text-xs text-muted-foreground">
             Type
-            <select v-model="field.type" :disabled="readonly" :class="inputClass" @change="onType(field)">
-              <option v-for="t in fieldTypes" :key="t" :value="t">{{ FIELD_TYPE_LABELS[t] }}</option>
-            </select>
+            <AppSelect v-model="field.type" :options="fieldTypeOptions" :disabled="readonly" @change="onType(field)" />
           </label>
         </div>
         <div v-if="!readonly" class="flex shrink-0 flex-col">

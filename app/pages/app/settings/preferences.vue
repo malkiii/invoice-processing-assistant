@@ -22,8 +22,6 @@ interface Connection {
   status: 'ok' | 'broken'
 }
 
-const selectClass =
-  'border-input h-9 w-full rounded-md border bg-transparent px-3 text-sm shadow-xs outline-none focus-visible:border-ring focus-visible:ring-ring/50 focus-visible:ring-3 dark:bg-input/30'
 
 const { theme } = useTheme()
 const { data: prefs } = await useFetch<Preferences>('/api/preferences')
@@ -38,19 +36,31 @@ const form = reactive({
   autoDelete: prefs.value?.autoDeleteAfterDays != null,
   autoDeleteAfterDays: prefs.value?.autoDeleteAfterDays ?? 30,
 })
-const models = ref<string[]>([])
+const models = ref<string[] | null>(null)
 const saved = ref(false)
 const error = ref<string | null>(null)
 
 const selectedConnection = computed(() => connections.value.find((c) => c.id === form.defaultConnectionId))
+const connectionOptions = computed(() => [
+  { value: '', label: 'None' },
+  ...connections.value.map((c) => ({ value: c.id, label: `${c.name}${c.status === 'broken' ? ' (broken)' : ''}` })),
+])
+const templateOptions = computed(() => [
+  { value: '', label: 'Built-in default' },
+  ...templates.value.filter((t) => !t.builtIn).map((t) => ({ value: t.id, label: t.name })),
+])
+const themeOptions: { value: ThemeName; label: string }[] = [
+  { value: 'noir', label: 'Ledger Noir' },
+  { value: 'day', label: 'Ledger Day' },
+]
 
 watch(
   () => form.defaultConnectionId,
   async (id) => {
-    models.value = []
+    models.value = null
     if (!id) return
-    const result = await $fetch<{ models: string[] }>(`/api/providers/${id}/models`).catch(() => ({ models: [] }))
-    models.value = result.models
+    const result = await $fetch<{ ok: boolean; models: string[] }>(`/api/providers/${id}/models`).catch(() => null)
+    if (form.defaultConnectionId === id) models.value = result?.ok ? result.models : null
   },
   { immediate: true },
 )
@@ -95,32 +105,22 @@ async function save() {
           </p>
           <div class="grid gap-2">
             <Label for="connection">Provider Connection</Label>
-            <select id="connection" v-model="form.defaultConnectionId" :class="selectClass">
-              <option value="">None</option>
-              <option v-for="c in connections" :key="c.id" :value="c.id">
-                {{ c.name }}{{ c.status === 'broken' ? ' (broken)' : '' }}
-              </option>
-            </select>
+            <AppSelect id="connection" v-model="form.defaultConnectionId" :options="connectionOptions" />
           </div>
           <div class="grid gap-2">
             <Label for="model">Model</Label>
-            <Input
+            <ModelCombobox
               id="model"
               v-model="form.defaultModel"
-              list="default-models"
+              :models="models"
+              clearable
               :placeholder="selectedConnection?.defaultModel ?? 'model id'"
             />
-            <datalist id="default-models">
-              <option v-for="m in models" :key="m" :value="m" />
-            </datalist>
             <p class="text-xs text-muted-foreground">Leave empty to use the connection's default model.</p>
           </div>
           <div class="grid gap-2">
             <Label for="template">Template</Label>
-            <select id="template" v-model="form.defaultTemplateId" :class="selectClass">
-              <option value="">Built-in default</option>
-              <option v-for="t in templates.filter((t) => !t.builtIn)" :key="t.id" :value="t.id">{{ t.name }}</option>
-            </select>
+            <AppSelect id="template" v-model="form.defaultTemplateId" :options="templateOptions" />
             <p class="text-xs text-muted-foreground">
               <NuxtLink to="/app/templates" class="underline">Manage Templates</NuxtLink>
             </p>
@@ -135,10 +135,7 @@ async function save() {
         <CardContent class="grid gap-4">
           <div class="grid gap-2">
             <Label for="theme">Theme</Label>
-            <select id="theme" v-model="form.theme" :class="selectClass">
-              <option value="noir">Ledger Noir</option>
-              <option value="day">Ledger Day</option>
-            </select>
+            <AppSelect id="theme" v-model="form.theme" :options="themeOptions" />
           </div>
           <div class="grid gap-2">
             <label class="flex items-center gap-2 text-sm">

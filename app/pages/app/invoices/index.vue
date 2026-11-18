@@ -65,7 +65,17 @@ function formatTotal(total: number | null, currency: string | null) {
   return `${total.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })} ${currency ?? ''}`.trim()
 }
 
-const selectClass = 'h-9 rounded-md border bg-background px-2 text-sm'
+const reviewedOptions = [
+  { value: '', label: 'All' },
+  { value: 'false', label: 'Not reviewed' },
+  { value: 'true', label: 'Reviewed' },
+]
+const checksOptions = [
+  { value: '', label: 'All' },
+  { value: 'failing', label: 'Failing' },
+  { value: 'clean', label: 'Clean' },
+  { value: 'unchecked', label: 'Not checked' },
+]
 </script>
 
 <template>
@@ -87,19 +97,10 @@ const selectClass = 'h-9 rounded-md border bg-background px-2 text-sm'
         <Input v-model="filters.search" placeholder="Vendor, invoice number or file" class="pl-8" />
       </label>
       <label class="grid gap-1 text-xs text-muted-foreground">Reviewed
-        <select v-model="filters.reviewed" :class="selectClass">
-          <option value="">All</option>
-          <option value="false">Not reviewed</option>
-          <option value="true">Reviewed</option>
-        </select>
+        <AppSelect v-model="filters.reviewed" :options="reviewedOptions" class="w-36" />
       </label>
       <label class="grid gap-1 text-xs text-muted-foreground">Checks
-        <select v-model="filters.checks" :class="selectClass">
-          <option value="">All</option>
-          <option value="failing">Failing</option>
-          <option value="clean">Clean</option>
-          <option value="unchecked">Not checked</option>
-        </select>
+        <AppSelect v-model="filters.checks" :options="checksOptions" class="w-36" />
       </label>
       <label class="grid gap-1 text-xs text-muted-foreground">Vendor
         <Input v-model="filters.vendor" class="w-40" />

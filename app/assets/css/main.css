@@ -112,6 +112,45 @@
   body {
     @apply bg-background text-foreground font-sans antialiased;
   }
+  /*
+   * Scrollbars: a thin rounded thumb in the line colour on a transparent track,
+   * brightening on hover. WebKit/Blink get the pseudo-elements (rounded, padded thumb);
+   * Firefox falls back to the standard properties.
+   */
+  * {
+    scrollbar-color: var(--ledger-line) transparent;
+  }
+  @supports selector(::-webkit-scrollbar) {
+    * {
+      scrollbar-color: auto;
+    }
+  }
+  @supports not selector(::-webkit-scrollbar) {
+    * {
+      scrollbar-width: thin;
+    }
+  }
+  ::-webkit-scrollbar {
+    width: 10px;
+    height: 10px;
+  }
+  ::-webkit-scrollbar-track,
+  ::-webkit-scrollbar-corner {
+    background: transparent;
+  }
+  ::-webkit-scrollbar-thumb {
+    background-color: var(--ledger-line);
+    background-clip: padding-box;
+    border: 2px solid transparent;
+    border-radius: 9999px;
+  }
+  ::-webkit-scrollbar-thumb:hover {
+    background-color: var(--ledger-text-muted);
+  }
+  ::-webkit-scrollbar-button {
+    display: none;
+  }
+
   /* All numbers and amounts render in JetBrains Mono. */
   .num {
     @apply font-mono tabular-nums;

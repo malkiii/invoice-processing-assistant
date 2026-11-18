@@ -157,21 +157,21 @@ onMounted(loadSessions)
       </CardContent>
     </Card>
 
-    <Card>
+    <Card class="min-w-0">
       <CardHeader>
         <CardTitle>Sessions</CardTitle>
         <CardDescription>Devices currently signed in to your account.</CardDescription>
       </CardHeader>
       <CardContent class="grid gap-3">
-        <div v-for="row in sessions" :key="row.id" class="flex items-center justify-between gap-4 rounded-md border p-3 text-sm">
-          <div class="min-w-0">
-            <p class="truncate">{{ row.userAgent ?? 'Unknown device' }}</p>
+        <div v-for="row in sessions" :key="row.id" class="flex min-w-0 items-center justify-between gap-4 rounded-md border p-3 text-sm">
+          <div class="min-w-0 flex-1">
+            <p class="truncate font-medium" :title="row.userAgent ?? undefined">{{ describeUserAgent(row.userAgent) }}</p>
             <p class="num text-xs text-muted-foreground">
               {{ row.ipAddress ?? '—' }} · {{ new Date(row.createdAt).toLocaleString() }}
             </p>
           </div>
-          <span v-if="row.id === session?.session.id" class="text-xs text-primary">This device</span>
-          <Button v-else variant="outline" size="sm" @click="revoke(row.token)">Sign out</Button>
+          <span v-if="row.id === session?.session.id" class="shrink-0 text-xs text-primary">This device</span>
+          <Button v-else variant="outline" size="sm" class="shrink-0" @click="revoke(row.token)">Sign out</Button>
         </div>
         <Button v-if="sessions.length > 1" variant="outline" class="justify-self-start" @click="revokeOthers">
           Sign out all other sessions
