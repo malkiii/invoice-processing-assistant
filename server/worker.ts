@@ -2,13 +2,16 @@
 // and run in the `worker` container from the same image as the app.
 import { createDatabase } from './db/client'
 import { createChecksRunner } from './domain/checks/recheck'
+import { createExtractionQueue } from './domain/extraction-queue'
 import { createExtractionRunner } from './domain/extraction/runner'
 import { createPdftoppmRasterizer } from './domain/extraction/rasterize'
 import { createS3Storage } from './domain/storage'
 import { readAppConfig } from './lib/config'
 import { createProviderConnections } from './lib/provider-connections'
+import { createSourceConnections, createSourceProviders } from './lib/source-connections'
 import { readStorageConfig } from './lib/storage-config'
 import { startWorker } from './worker/start'
+import { startSourceFetching } from './worker/source-fetch'
 import { startUrlFetching } from './worker/url-fetch'
 import { startExportGeneration } from './worker/exports'
 
@@ -26,6 +29,16 @@ const concurrency = Number(process.env.WORKER_CONCURRENCY) || undefined
 const worker = await startWorker({ databaseUrl: config.databaseUrl, extraction: { runner, concurrency } })
 const stopUrlFetching = await startUrlFetching(worker.boss, { databaseUrl: config.databaseUrl })
 await startExportGeneration(worker.boss, { db, storage })
+await startSourceFetching(worker.boss, {
+  db,
+  storage,
+  extractionQueue: await createExtractionQueue(worker.boss),
+  sources: createSourceConnections({
+    db,
+    encryptionKey: config.encryptionKey,
+    providers: createSourceProviders(config.sources),
+  }),
+})
 console.log('[worker] connected to pg-boss, waiting for jobs')
 
 let stopping = false

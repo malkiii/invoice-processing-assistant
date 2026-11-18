@@ -14,6 +14,8 @@ import { fetchUrl } from '../domain/url-fetch'
 import { createUrlFetchQueue, createUrlIntake, type UrlFetchQueue, type UrlIntake } from '../domain/url-intake'
 import { createReextraction, type Reextraction } from '../domain/review/rerun'
 import { createReview, type Review } from '../domain/review/review'
+import { createSourceFetchQueue, createSourceIntake, type SourceFetchQueue, type SourceIntake } from '../domain/source-intake'
+import { createSourceConnections, createSourceProviders, type SourceConnections } from '../lib/source-connections'
 import { createExportQueue, createExports, type ExportQueue, type Exports } from '../domain/export/exports'
 
 // Process-wide singletons for Nitro routes. Created lazily on first use.
@@ -137,4 +139,35 @@ function useExportQueue(): Promise<ExportQueue> {
 
 export async function useExports(): Promise<Exports> {
   return createExports({ db: useDb(), storage: useDocumentStorage(), queue: await useExportQueue() })
+}
+
+// --- Google Drive and Dropbox Source Connections (ticket 12) ---
+let sourceConnections: SourceConnections | undefined
+let sourceFetchQueue: Promise<SourceFetchQueue> | undefined
+
+export function useSourceConnections(): SourceConnections {
+  return (sourceConnections ??= createSourceConnections({
+    db: useDb(),
+    encryptionKey: useServerConfig().encryptionKey,
+    providers: createSourceProviders(useServerConfig().sources),
+  }))
+}
+
+function useSourceFetchQueue(): Promise<SourceFetchQueue> {
+  return (sourceFetchQueue ??= useQueueBoss()
+    .then(createSourceFetchQueue)
+    .catch((error) => {
+      sourceFetchQueue = undefined
+      throw error
+    }))
+}
+
+export async function useSourceIntake(): Promise<SourceIntake> {
+  return createSourceIntake({
+    db: useDb(),
+    storage: useDocumentStorage(),
+    extractionQueue: await useExtractionQueue(),
+    fetchQueue: await useSourceFetchQueue(),
+    download: useSourceConnections().download,
+  })
 }

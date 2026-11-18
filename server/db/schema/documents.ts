@@ -31,6 +31,8 @@ export const document = pgTable(
     source: text('source').$type<DocumentSource>().notNull(),
     /** The name the User knows the file by; for folder uploads, its path inside the folder. */
     name: text('name').notNull(),
+    /** The provider's file id, for Documents pulled through a Source Connection (Drive, Dropbox). */
+    sourceRef: text('source_ref'),
     /** Object key in S3-compatible storage (ADR 0002). Null once the file is removed. */
     storageKey: text('storage_key'),
     sizeBytes: bigint('size_bytes', { mode: 'number' }),

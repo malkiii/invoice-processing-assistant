@@ -3,18 +3,16 @@
  * (through the SSRF guard in url-fetch.ts), stores it like an upload and queues it for extraction.
  * A Document's name is the URL as submitted.
  */
-import { and, eq } from 'drizzle-orm'
 import type { PgBoss } from 'pg-boss'
 import type { Database } from '../db/client'
-import { getInstanceSettings } from '../db/instance-settings'
 import { batch, document } from '../db/schema'
-import { inspectDocument, type DocumentLimits } from './document-inspection'
+import type { DocumentLimits } from './document-inspection'
 import type { DocumentRow } from './document-library'
 import type { ExtractionQueue } from './extraction-queue'
 import { MAX_FILES_PER_BATCH } from './intake'
 import { checkUrl } from './ssrf-guard'
+import { failDocument, fetchRemoteDocument } from './remote-intake'
 import type { ObjectStorage } from './storage'
-import { storageKeyFor } from './storage-keys'
 import type { UrlFetchResult } from './url-fetch'
 
 /** pg-boss queue holding one job per URL Document waiting to be downloaded. */
@@ -75,15 +73,6 @@ export function createUrlIntake(deps: {
 }): UrlIntake {
   const { db, storage, extractionQueue, fetchQueue } = deps
 
-  async function fail(documentId: string, reason: string, extra: Partial<DocumentRow> = {}) {
-    const [row] = await db
-      .update(document)
-      .set({ ...extra, status: 'failed', failureReason: reason })
-      .where(eq(document.id, documentId))
-      .returning()
-    return row!
-  }
-
   return {
     async startUrlBatch(userId, lines) {
       const urls = lines.map((line) => line.trim()).filter(Boolean)
@@ -120,7 +109,7 @@ export function createUrlIntake(deps: {
               await fetchQueue.enqueue(row.id)
             } catch (error) {
               console.error('[url-intake] could not enqueue fetch', error)
-              row = await fail(row.id, 'The URL could not be queued for download. Try again.')
+              row = await failDocument(db, row.id, 'The URL could not be queued for download. Try again.')
             }
           }
           return { id: row.id, name: row.name, status: row.status, failureReason: row.failureReason }
@@ -129,45 +118,7 @@ export function createUrlIntake(deps: {
       return { batchId: started.batchId, documents }
     },
 
-    async fetchDocument(documentId) {
-      const [row] = await db.select().from(document).where(eq(document.id, documentId))
-      if (!row) return null
-      if (row.status !== 'fetching') return row
-
-      const settings = await getInstanceSettings(db)
-      const limits = { maxDocumentBytes: settings.maxDocumentBytes, maxDocumentPages: settings.maxDocumentPages }
-      const fetched = await deps.fetchUrl(row.name, limits)
-      if (!fetched.ok) return fail(row.id, fetched.reason)
-
-      const sizeBytes = fetched.bytes.length
-      const result = await inspectDocument(fetched.bytes, limits)
-      if (!result.ok) return fail(row.id, result.reason, { sizeBytes })
-
-      const key = storageKeyFor(row.userId, row.id)
-      await storage.write(key, fetched.bytes, result.mimeType)
-
-      // Only the run that moves the Document out of `fetching` enqueues it.
-      const [queued] = await db
-        .update(document)
-        .set({
-          status: 'queued',
-          storageKey: key,
-          sizeBytes,
-          format: result.format,
-          mimeType: result.mimeType,
-          pageCount: result.pageCount,
-        })
-        .where(and(eq(document.id, row.id), eq(document.status, 'fetching')))
-        .returning()
-      if (!queued) return (await db.select().from(document).where(eq(document.id, row.id)))[0]!
-
-      try {
-        await extractionQueue.enqueue(queued.id)
-      } catch (error) {
-        console.error('[url-intake] could not enqueue extraction', error)
-        return fail(queued.id, 'The Document could not be queued for extraction. Try again.')
-      }
-      return queued
-    },
+    fetchDocument: (documentId) =>
+      fetchRemoteDocument({ db, storage, extractionQueue }, documentId, (row, limits) => deps.fetchUrl(row.name, limits)),
   }
 }

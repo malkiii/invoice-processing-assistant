@@ -65,7 +65,7 @@ const summary = computed(() => {
     <div>
       <h1 class="text-2xl font-semibold">Intake</h1>
       <p class="text-sm text-muted-foreground">
-        Add Documents from your computer or from URLs: PDF, DOCX, PNG, JPEG, WEBP or HTML. Each drop, pick or URL
+        Add Documents from your computer, from URLs or from a connected Google Drive or Dropbox: PDF, DOCX, PNG, JPEG, WEBP or HTML. Each drop, pick or URL
         submission creates one Batch.
       </p>
     </div>
@@ -163,5 +163,7 @@ const summary = computed(() => {
         </ul>
       </CardContent>
     </Card>
+
+    <IntakeCloudSources />
   </div>
 </template>

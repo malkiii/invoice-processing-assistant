@@ -61,4 +61,44 @@ describe('readAppConfig', () => {
   it('rejects an ENCRYPTION_KEY that is not 32 bytes of hex', () => {
     expect(() => readAppConfig({ ...base, ENCRYPTION_KEY: 'short' })).toThrow(/ENCRYPTION_KEY/)
   })
+
+  describe('Source Connections', () => {
+    const google = {
+      GOOGLE_DRIVE_CLIENT_ID: 'drive-id',
+      GOOGLE_DRIVE_CLIENT_SECRET: 'drive-secret',
+      GOOGLE_PICKER_API_KEY: 'picker-key',
+      GOOGLE_PICKER_APP_ID: '123456',
+    }
+    const dropbox = { DROPBOX_APP_KEY: 'dbx-key', DROPBOX_APP_SECRET: 'dbx-secret' }
+
+    it('enables each source whose values are all set, with its callback under the auth URL', () => {
+      const config = readAppConfig({ ...base, ...google, ...dropbox })
+      expect(config.sources).toEqual({
+        'google-drive': {
+          clientId: 'drive-id',
+          clientSecret: 'drive-secret',
+          redirectUri: 'http://localhost:3000/api/sources/google/callback',
+          pickerApiKey: 'picker-key',
+          pickerAppId: '123456',
+        },
+        dropbox: {
+          clientId: 'dbx-key',
+          clientSecret: 'dbx-secret',
+          redirectUri: 'http://localhost:3000/api/sources/dropbox/callback',
+        },
+      })
+      expect(config.warnings).not.toContainEqual(expect.stringMatching(/Google Drive|Dropbox/))
+    })
+
+    it('leaves sources disabled when nothing is set', () => {
+      expect(readAppConfig(base).sources).toEqual({})
+    })
+
+    it('disables a partly configured source and warns which values are missing', () => {
+      const config = readAppConfig({ ...base, ...google, GOOGLE_PICKER_APP_ID: '', DROPBOX_APP_KEY: 'dbx-key' })
+      expect(config.sources).toEqual({})
+      expect(config.warnings).toContain('Google Drive is disabled: GOOGLE_PICKER_APP_ID is not set.')
+      expect(config.warnings).toContain('Dropbox is disabled: DROPBOX_APP_SECRET is not set.')
+    })
+  })
 })
