@@ -28,7 +28,7 @@ async function save() {
 </script>
 
 <template>
-  <form class="grid gap-6" @submit.prevent="save">
+  <form class="grid grid-cols-1 gap-6" @submit.prevent="save">
     <div class="flex flex-wrap items-center justify-between gap-3">
       <div>
         <NuxtLink to="/app/templates" class="text-sm text-muted-foreground underline">Templates</NuxtLink>

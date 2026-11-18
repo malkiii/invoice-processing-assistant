@@ -37,7 +37,7 @@ async function disconnect(source: SourceOption) {
 </script>
 
 <template>
-  <div class="grid max-w-2xl gap-6">
+  <div class="grid max-w-2xl grid-cols-1 gap-6">
     <h1 class="text-2xl font-semibold">Settings</h1>
     <SettingsNav />
 
@@ -58,17 +58,14 @@ async function disconnect(source: SourceOption) {
 
     <Card v-for="s in enabled" :key="s.kind" :data-testid="`source-${s.kind}`">
       <CardHeader>
-        <div class="flex items-start justify-between gap-4">
-          <div class="grid gap-1">
+        <div class="flex flex-wrap items-center justify-between gap-x-4 gap-y-3">
+          <div class="grid min-w-0 gap-1">
             <CardTitle class="flex items-center gap-2">
               {{ s.label }}
               <Badge v-if="s.connection?.status === 'broken'" variant="destructive"><AlertTriangle /> Broken</Badge>
             </CardTitle>
-            <CardDescription>
-              <template v-if="s.connection">
-                Connected as {{ s.connection.accountLabel }} · since {{ formatDateTime(s.connection.connectedAt) }}
-              </template>
-              <template v-else>Not connected</template>
+            <CardDescription v-if="s.connection" class="break-words">
+              Connected as {{ s.connection.accountLabel }} · since {{ formatDateTime(s.connection.connectedAt) }}
             </CardDescription>
           </div>
           <div class="flex shrink-0 gap-1">

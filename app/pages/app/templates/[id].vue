@@ -78,12 +78,12 @@ async function makeDefault() {
     <h1 class="text-2xl font-semibold">Template not found</h1>
     <NuxtLink to="/app/templates" class="text-sm underline">Back to Templates</NuxtLink>
   </div>
-  <form v-else-if="template" class="grid gap-6" @submit.prevent="save">
+  <form v-else-if="template" class="grid grid-cols-1 gap-6" @submit.prevent="save">
     <div class="flex flex-wrap items-center justify-between gap-3">
-      <div>
+      <div class="min-w-0">
         <NuxtLink to="/app/templates" class="text-sm text-muted-foreground underline">Templates</NuxtLink>
-        <div class="flex items-center gap-2">
-          <h1 class="text-2xl font-semibold">{{ template.name }}</h1>
+        <div class="flex flex-wrap items-center gap-2">
+          <h1 class="text-2xl font-semibold break-words">{{ template.name }}</h1>
           <Badge v-if="template.builtIn" variant="secondary">Built-in, read-only</Badge>
           <Badge v-if="isDefault">Default</Badge>
         </div>

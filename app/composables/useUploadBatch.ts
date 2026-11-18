@@ -128,8 +128,11 @@ export function useUploadBatch() {
             `/api/documents/${doc.id}/confirm`,
             { method: 'POST' },
           )
-          item.status = confirmed.status
-          item.failureReason = confirmed.failureReason
+          // A live status event may already have moved the Document on (e.g. to processing).
+          if (item.status === 'uploading' || confirmed.status === 'failed') {
+            item.status = confirmed.status
+            item.failureReason = confirmed.failureReason
+          }
         } catch {
           item.status = 'failed'
           item.failureReason = 'Could not reach the server to confirm this upload.'

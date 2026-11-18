@@ -91,7 +91,7 @@ onMounted(async () => {
           <Label :for="`cap-${connectionId}`">Model Capability</Label>
           <AppSelect :id="`cap-${connectionId}`" v-model="capabilityOverride" :options="capabilityOptions" />
         </div>
-        <div class="grid grid-cols-2 gap-4">
+        <div class="grid gap-4 sm:grid-cols-2">
           <div class="grid gap-2">
             <Label :for="`in-${connectionId}`">Input price / 1M tokens</Label>
             <Input :id="`in-${connectionId}`" v-model="inputPrice" type="number" min="0" step="any" />
@@ -105,21 +105,23 @@ onMounted(async () => {
         <div><Button type="submit" size="sm">Save model settings</Button></div>
       </template>
     </form>
-    <table v-if="saved.length" class="w-full text-left text-sm">
-      <thead class="text-xs text-muted-foreground">
-        <tr><th class="py-1">Model</th><th>Capability</th><th>Input / 1M</th><th>Output / 1M</th></tr>
-      </thead>
-      <tbody>
-        <tr v-for="s in saved" :key="s.modelId" class="cursor-pointer border-t" @click="select(s.modelId)">
-          <td class="py-1 font-mono">{{ s.modelId }}</td>
-          <td>
-            {{ capabilityLabels[s.capability] }}
-            <span v-if="s.capabilityOverride" class="text-muted-foreground">(override)</span>
-          </td>
-          <td>{{ s.price?.inputPerMillion ?? '—' }}</td>
-          <td>{{ s.price?.outputPerMillion ?? '—' }}</td>
-        </tr>
-      </tbody>
-    </table>
+    <div v-if="saved.length" class="data-table-wrap">
+      <table class="data-table">
+        <thead>
+          <tr><th>Model</th><th>Capability</th><th class="text-right">Input / 1M</th><th class="text-right">Output / 1M</th></tr>
+        </thead>
+        <tbody>
+          <tr v-for="s in saved" :key="s.modelId" class="cursor-pointer hover:bg-accent/10" @click="select(s.modelId)">
+            <td class="font-mono break-all">{{ s.modelId }}</td>
+            <td>
+              {{ capabilityLabels[s.capability] }}
+              <span v-if="s.capabilityOverride" class="text-muted-foreground">(override)</span>
+            </td>
+            <td class="num text-right">{{ s.price?.inputPerMillion ?? '—' }}</td>
+            <td class="num text-right">{{ s.price?.outputPerMillion ?? '—' }}</td>
+          </tr>
+        </tbody>
+      </table>
+    </div>
   </div>
 </template>

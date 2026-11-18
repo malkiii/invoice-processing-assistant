@@ -156,3 +156,28 @@
     @apply font-mono tabular-nums;
   }
 }
+
+/*
+ * Data tables: one look for every list table. Wrap the table in `.data-table-wrap` so it
+ * scrolls sideways on narrow screens instead of widening the page. Cell utilities still win.
+ */
+@layer components {
+  .data-table-wrap {
+    @apply overflow-x-auto rounded-lg border bg-card;
+  }
+  .data-table {
+    @apply w-full text-sm;
+  }
+  .data-table thead {
+    @apply text-left text-muted-foreground;
+  }
+  .data-table th {
+    @apply px-3 py-2 font-medium whitespace-nowrap;
+  }
+  .data-table td {
+    @apply px-3 py-2 align-middle;
+  }
+  .data-table tbody tr {
+    @apply border-t;
+  }
+}

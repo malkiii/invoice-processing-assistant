@@ -14,6 +14,19 @@ const busy = ref<SourceKind | null>(null)
 const errors = ref<Partial<Record<SourceKind, string>>>({})
 const batches = ref<Partial<Record<SourceKind, StartedSourceBatch>>>({})
 
+// Live status for the Batches started from each source.
+useBatchEvents(() => Object.values(batches.value).map((b) => b?.batchId), {
+  onChange: (change) => {
+    for (const b of Object.values(batches.value)) {
+      const doc = b?.documents.find((d) => d.id === change.documentId)
+      if (doc) {
+        doc.status = change.status
+        doc.failureReason = change.failureReason
+      }
+    }
+  },
+})
+
 onMounted(() => {
   const dropbox = enabled.value.find((s) => s.kind === 'dropbox' && usable(s))
   if (dropbox) prepareDropbox(dropbox).catch((err: Error) => (errors.value.dropbox = err.message))
@@ -52,7 +65,7 @@ async function pick(source: SourceOption) {
         <TabsContent v-for="s in enabled" :key="s.kind" :value="s.kind" class="grid gap-3">
           <template v-if="usable(s)">
             <p class="text-sm text-muted-foreground">Connected as {{ s.connection!.accountLabel }}.</p>
-            <div class="flex items-center gap-3">
+            <div class="flex flex-wrap items-center gap-3">
               <Button :disabled="busy !== null" :data-testid="`pick-${s.kind}`" @click="pick(s)">
                 {{ busy === s.kind ? 'Adding…' : `Choose files from ${s.label}` }}
               </Button>

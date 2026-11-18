@@ -9,12 +9,12 @@ const items = [
 </script>
 
 <template>
-  <nav class="flex gap-1 border-b" aria-label="Settings">
+  <nav class="-mx-4 flex gap-1 overflow-x-auto border-b px-4 md:mx-0 md:px-0" aria-label="Settings">
     <NuxtLink
       v-for="item in items"
       :key="item.to"
       :to="item.to"
-      class="-mb-px border-b-2 border-transparent px-3 py-2 text-sm text-muted-foreground hover:text-foreground"
+      class="-mb-px shrink-0 border-b-2 border-transparent px-3 py-2 text-sm whitespace-nowrap text-muted-foreground hover:text-foreground"
       active-class="!border-primary !text-foreground"
     >
       {{ item.label }}

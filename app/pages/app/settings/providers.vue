@@ -188,12 +188,12 @@ function toggleModels(c: Connection) {
 </script>
 
 <template>
-  <div class="grid max-w-3xl gap-6">
+  <div class="grid max-w-3xl grid-cols-1 gap-6">
     <h1 class="text-2xl font-semibold">Settings</h1>
     <SettingsNav />
 
-    <div class="flex items-center justify-between gap-4">
-      <p class="text-sm text-muted-foreground">
+    <div class="flex flex-wrap items-center justify-between gap-4">
+      <p class="min-w-0 flex-1 basis-64 text-sm text-muted-foreground">
         Bring your own key. Keys are encrypted at rest and never sent back to your browser.
       </p>
       <Button v-if="!formOpen" @click="openAdd"><Plug class="size-4" /> Add provider</Button>
@@ -274,13 +274,13 @@ function toggleModels(c: Connection) {
 
     <Card v-for="c in connections" :key="c.id" :data-testid="`provider-${c.id}`">
       <CardHeader>
-        <div class="flex items-start justify-between gap-4">
-          <div class="grid gap-1">
+        <div class="flex flex-wrap items-start justify-between gap-x-4 gap-y-3">
+          <div class="grid min-w-0 gap-1">
             <CardTitle class="flex items-center gap-2">
               {{ c.name }}
               <Badge v-if="c.status === 'broken'" variant="destructive"><AlertTriangle /> Broken</Badge>
             </CardTitle>
-            <CardDescription>
+            <CardDescription class="break-all">
               {{ presetFor(c.kind)?.label ?? c.kind }}
               <template v-if="c.apiKeyHint"> · key <span class="font-mono">{{ c.apiKeyHint }}</span></template>
               <template v-if="c.baseUrl"> · {{ c.baseUrl }}</template>

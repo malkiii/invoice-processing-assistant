@@ -79,7 +79,7 @@ const checksOptions = [
 </script>
 
 <template>
-  <div class="grid gap-4">
+  <div class="grid grid-cols-1 gap-4">
     <div class="flex flex-wrap items-start justify-between gap-2">
       <div>
         <h1 class="text-2xl font-semibold">Invoices</h1>
@@ -90,68 +90,68 @@ const checksOptions = [
       </Button>
     </div>
 
-    <form class="flex flex-wrap items-end gap-2" role="search" @submit.prevent>
-      <label class="relative grow basis-60">
+    <form class="grid grid-cols-2 items-end gap-2 sm:flex sm:flex-wrap" role="search" @submit.prevent>
+      <label class="relative col-span-2 grow basis-60">
         <span class="sr-only">Search</span>
         <Search class="pointer-events-none absolute top-2.5 left-2.5 size-4 text-muted-foreground" />
         <Input v-model="filters.search" placeholder="Vendor, invoice number or file" class="pl-8" />
       </label>
       <label class="grid gap-1 text-xs text-muted-foreground">Reviewed
-        <AppSelect v-model="filters.reviewed" :options="reviewedOptions" class="w-36" />
+        <AppSelect v-model="filters.reviewed" :options="reviewedOptions" class="w-full sm:w-36" />
       </label>
       <label class="grid gap-1 text-xs text-muted-foreground">Checks
-        <AppSelect v-model="filters.checks" :options="checksOptions" class="w-36" />
+        <AppSelect v-model="filters.checks" :options="checksOptions" class="w-full sm:w-36" />
       </label>
-      <label class="grid gap-1 text-xs text-muted-foreground">Vendor
-        <Input v-model="filters.vendor" class="w-40" />
+      <label class="col-span-2 grid gap-1 text-xs text-muted-foreground">Vendor
+        <Input v-model="filters.vendor" class="w-full sm:w-40" />
       </label>
       <label class="grid gap-1 text-xs text-muted-foreground">Issued from
-        <Input v-model="filters.from" type="date" class="num w-40" />
+        <Input v-model="filters.from" type="date" class="num w-full sm:w-40" />
       </label>
       <label class="grid gap-1 text-xs text-muted-foreground">to
-        <Input v-model="filters.to" type="date" class="num w-40" />
+        <Input v-model="filters.to" type="date" class="num w-full sm:w-40" />
       </label>
     </form>
 
-    <div class="overflow-x-auto rounded-lg border bg-card" :aria-busy="pending">
-      <table class="w-full text-sm">
-        <thead class="text-left text-muted-foreground">
+    <div class="data-table-wrap" :aria-busy="pending">
+      <table class="data-table">
+        <thead>
           <tr>
-            <th class="w-8 px-3 py-2">
+            <th class="w-8">
               <input type="checkbox" :checked="allSelected" :disabled="!invoices?.length" aria-label="Select all Invoices" @change="toggleAll">
             </th>
-            <th class="px-3 py-2 font-medium">Vendor</th>
-            <th class="px-3 py-2 font-medium">Number</th>
-            <th class="px-3 py-2 font-medium">Issued</th>
-            <th class="px-3 py-2 text-right font-medium">Total</th>
-            <th class="px-3 py-2 font-medium">Checks</th>
-            <th class="px-3 py-2 font-medium">Reviewed</th>
-            <th class="px-3 py-2 font-medium">Document</th>
+            <th>Vendor</th>
+            <th>Number</th>
+            <th>Issued</th>
+            <th class="text-right">Total</th>
+            <th>Checks</th>
+            <th>Reviewed</th>
+            <th>Document</th>
           </tr>
         </thead>
-        <tbody class="divide-y">
+        <tbody>
           <tr v-for="inv in invoices" :key="inv.id" class="hover:bg-accent/10">
-            <td class="px-3 py-2">
+            <td>
               <input v-model="selected" type="checkbox" :value="inv.id" :aria-label="`Select ${inv.invoiceNumber ?? inv.documentName}`">
             </td>
-            <td class="px-3 py-2">
-              <NuxtLink :to="`/app/invoices/${inv.id}`" class="font-medium hover:underline">{{ inv.vendorName ?? '—' }}</NuxtLink>
+            <td>
+              <NuxtLink :to="`/app/invoices/${inv.id}`" class="font-medium whitespace-nowrap hover:underline">{{ inv.vendorName ?? '—' }}</NuxtLink>
               <span v-if="inv.corrected" class="ml-1 text-xs text-primary" title="Has corrections">edited</span>
             </td>
-            <td class="num px-3 py-2">{{ inv.invoiceNumber ?? '—' }}</td>
-            <td class="num px-3 py-2 whitespace-nowrap">{{ inv.issueDate ?? '—' }}</td>
-            <td class="num px-3 py-2 text-right whitespace-nowrap">{{ formatTotal(inv.total, inv.currency) }}</td>
-            <td class="px-3 py-2"><ReviewCheckBadge :status="inv.checkStatus" :failed="inv.failedChecks" /></td>
-            <td class="px-3 py-2">
+            <td class="num whitespace-nowrap">{{ inv.invoiceNumber ?? '—' }}</td>
+            <td class="num whitespace-nowrap">{{ inv.issueDate ?? '—' }}</td>
+            <td class="num text-right whitespace-nowrap">{{ formatTotal(inv.total, inv.currency) }}</td>
+            <td><ReviewCheckBadge :status="inv.checkStatus" :failed="inv.failedChecks" /></td>
+            <td>
               <Check v-if="inv.reviewedAt" class="size-4 text-primary" aria-label="Reviewed" />
               <span v-else class="text-muted-foreground">—</span>
             </td>
-            <td class="max-w-48 truncate px-3 py-2 text-muted-foreground" :title="inv.documentName">
+            <td class="max-w-48 truncate text-muted-foreground" :title="inv.documentName">
               <NuxtLink :to="`/app/documents/${inv.documentId}`" class="hover:underline">{{ inv.documentName }}</NuxtLink>
             </td>
           </tr>
           <tr v-if="invoices && !invoices.length">
-            <td colspan="8" class="px-3 py-8 text-center text-muted-foreground">No Invoices match.</td>
+            <td colspan="8" class="py-8 text-center text-muted-foreground">No Invoices match.</td>
           </tr>
         </tbody>
       </table>

@@ -15,13 +15,13 @@ function invoiceLabel(inv: { vendorName: string | null; invoiceNumber: string | 
 </script>
 
 <template>
-  <div class="grid gap-6">
+  <div class="grid grid-cols-1 gap-6">
     <div>
       <h1 class="text-2xl font-semibold">Dashboard</h1>
       <p class="text-sm text-muted-foreground">Welcome, {{ user?.name }}.</p>
     </div>
 
-    <div v-if="data" class="grid gap-4 lg:grid-cols-3">
+    <div v-if="data" class="grid grid-cols-1 gap-4 lg:grid-cols-3">
       <section class="grid content-start gap-3 rounded-lg border bg-card p-4 lg:col-span-2" aria-labelledby="needs-review">
         <div class="flex items-baseline justify-between">
           <h2 id="needs-review" class="font-medium">Needs review <span class="num text-muted-foreground">{{ data.needsReviewCount }}</span></h2>
@@ -56,8 +56,8 @@ function invoiceLabel(inv: { vendorName: string | null; invoiceNumber: string | 
         </p>
         <ul v-else class="divide-y">
           <li v-for="b in data.recentBatches" :key="b.id" class="flex items-center justify-between gap-3 py-2 text-sm">
-            <NuxtLink :to="`/app/batches/${b.id}`" class="hover:underline">{{ formatDateTime(b.createdAt) }} · {{ b.source }}</NuxtLink>
-            <span class="num text-muted-foreground">{{ b.documentCount }} Documents</span>
+            <NuxtLink :to="`/app/batches/${b.id}`" class="min-w-0 truncate hover:underline">{{ formatDateTime(b.createdAt) }} · {{ b.source }}</NuxtLink>
+            <span class="num shrink-0 text-muted-foreground">{{ b.documentCount }} Documents</span>
           </li>
         </ul>
       </section>

@@ -2,6 +2,8 @@
 import { Check, ChevronRight, Download, RefreshCw, Undo2 } from '@lucide/vue'
 import type { InternalApi } from 'nitropack/types'
 import { Button } from '@/components/ui/button'
+import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
+import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs'
 
 type InvoiceView = InternalApi['/api/invoices/:id']['get']
 type InvoiceUpdate = InternalApi['/api/invoices/:id/reviewed']['put']
@@ -20,7 +22,6 @@ const title = computed(() => {
 })
 useHead({ title })
 
-const view = ref<'table' | 'json'>('table')
 const saving = ref(false)
 const message = ref('')
 
@@ -88,11 +89,11 @@ const exportOpen = ref(false)
 </script>
 
 <template>
-  <div v-if="inv" class="grid gap-4">
-    <div class="flex flex-wrap items-start justify-between gap-3">
+  <div v-if="inv" class="grid grid-cols-1 gap-4">
+    <header class="grid gap-3">
       <div class="min-w-0">
-        <NuxtLink :to="`/app/documents/${inv.documentId}`" class="text-sm text-muted-foreground underline">{{ inv.documentName }}</NuxtLink>
-        <h1 class="truncate text-2xl font-semibold">{{ title }}</h1>
+        <NuxtLink :to="`/app/documents/${inv.documentId}`" class="text-sm break-all text-muted-foreground underline">{{ inv.documentName }}</NuxtLink>
+        <h1 class="text-2xl font-semibold break-words">{{ title }}</h1>
         <div class="mt-1 flex flex-wrap items-center gap-2 text-sm">
           <ReviewCheckBadge :status="inv.checkStatus" :failed="failedChecks.map((c) => c.message)" />
           <span v-if="inv.reviewedAt" class="inline-flex items-center gap-1 text-primary" data-testid="reviewed"><Check class="size-4" /> Reviewed</span>
@@ -100,20 +101,21 @@ const exportOpen = ref(false)
           <span v-if="inv.correctedPaths.length" class="text-muted-foreground">· {{ inv.correctedPaths.length }} edited</span>
         </div>
       </div>
-      <div class="flex flex-wrap gap-2">
-        <Button variant="outline" size="sm" @click="rerunOpen = true"><RefreshCw class="size-4" /> Re-run</Button>
-        <Button v-if="inv.isCurrentExtraction" variant="outline" size="sm" @click="exportOpen = true"><Download class="size-4" /> Export</Button>
+      <div class="flex flex-wrap items-center gap-2">
         <Button v-if="inv.reviewedAt" variant="outline" size="sm" :disabled="saving" @click="setReviewed(false)">
           <Undo2 class="size-4" /> Mark as unreviewed
         </Button>
         <Button v-else size="sm" :disabled="saving || !inv.isCurrentExtraction" @click="setReviewed(true)">
           <Check class="size-4" /> Mark as reviewed
         </Button>
-        <Button variant="ghost" size="sm" title="Next unreviewed (J)" @click="nextUnreviewed">
-          Next unreviewed <ChevronRight class="size-4" /> <kbd class="rounded border px-1 text-xs text-muted-foreground">J</kbd>
+        <Button variant="outline" size="sm" title="Next unreviewed (J)" @click="nextUnreviewed">
+          Next unreviewed <ChevronRight class="size-4" />
         </Button>
+        <div class="hidden flex-1 sm:block" />
+        <Button variant="ghost" size="sm" @click="rerunOpen = true"><RefreshCw class="size-4" /> Re-run</Button>
+        <Button v-if="inv.isCurrentExtraction" variant="ghost" size="sm" @click="exportOpen = true"><Download class="size-4" /> Export</Button>
       </div>
-    </div>
+    </header>
 
     <p v-if="!inv.isCurrentExtraction" class="rounded-md border border-dashed p-3 text-sm text-muted-foreground" data-testid="history-notice">
       This Invoice belongs to an earlier Extraction and is kept as history. Its corrections do not apply to the Current Extraction.
@@ -139,9 +141,10 @@ const exportOpen = ref(false)
       </ul>
     </section>
 
-    <div class="grid gap-4 lg:grid-cols-2">
+    <!-- Side by side (Fields left, Document right) only when both columns get enough room; stacked (viewer first) otherwise. -->
+    <div class="grid grid-cols-1 gap-4 xl:grid-cols-2">
       <ReviewDocumentViewer
-        class="lg:sticky lg:top-4 lg:self-start"
+        class="xl:sticky xl:top-4 xl:order-last xl:self-start"
         :document-id="inv.documentId"
         :name="inv.documentName"
         :format="inv.documentFormat"
@@ -149,40 +152,38 @@ const exportOpen = ref(false)
         :file-url="inv.fileUrl"
       />
 
-      <div class="grid content-start gap-3">
-        <div class="flex items-center justify-between">
-          <h2 class="text-lg font-semibold">Fields</h2>
-          <div class="inline-flex rounded-md border p-0.5 text-sm" role="tablist" aria-label="View">
-            <button
-              v-for="v in (['table', 'json'] as const)"
-              :key="v"
-              type="button"
-              role="tab"
-              :aria-selected="view === v"
-              class="rounded px-3 py-1"
-              :class="view === v ? 'bg-secondary text-secondary-foreground' : 'text-muted-foreground'"
-              @click="view = v"
-            >
-              {{ v === 'table' ? 'Table' : 'JSON' }}
-            </button>
-          </div>
-        </div>
-        <ReviewInvoiceFields
-          v-if="view === 'table'"
-          :fields="inv.templateSnapshot.fields"
-          :values="inv.values"
-          :raw-values="inv.rawValues"
-          :corrected-paths="inv.correctedPaths"
-          :check-results="inv.checkResults"
-          :disabled="saving || !inv.isCurrentExtraction"
-          @correct="correct"
-          @revert="revert"
-        />
-        <pre v-else class="num overflow-auto rounded-lg border bg-card p-3 text-xs" data-testid="invoice-json">{{ JSON.stringify(inv.values, null, 2) }}</pre>
-        <p class="text-xs text-muted-foreground">
-          Shortcuts: <kbd>J</kbd> next unreviewed · <kbd>R</kbd> toggle reviewed · <kbd>Shift</kbd>+<kbd>R</kbd> mark reviewed and go to next
-        </p>
-      </div>
+      <Tabs default-value="fields" class="min-w-0 gap-4">
+        <TabsList>
+          <TabsTrigger value="fields">Fields</TabsTrigger>
+          <TabsTrigger value="json">JSON</TabsTrigger>
+        </TabsList>
+        <TabsContent value="fields" class="grid gap-3">
+          <ReviewInvoiceFields
+            :fields="inv.templateSnapshot.fields"
+            :values="inv.values"
+            :raw-values="inv.rawValues"
+            :corrected-paths="inv.correctedPaths"
+            :check-results="inv.checkResults"
+            :disabled="saving || !inv.isCurrentExtraction"
+            @correct="correct"
+            @revert="revert"
+          />
+          <p class="hidden text-xs text-muted-foreground sm:block">
+            Shortcuts: <kbd>J</kbd> next unreviewed · <kbd>R</kbd> toggle reviewed · <kbd>Shift</kbd>+<kbd>R</kbd> mark reviewed and go to next
+          </p>
+        </TabsContent>
+        <TabsContent value="json">
+          <Card>
+            <CardHeader>
+              <CardTitle>JSON</CardTitle>
+              <CardDescription>This Invoice's values, with your corrections applied.</CardDescription>
+            </CardHeader>
+            <CardContent>
+              <JsonTree :value="inv.values" data-testid="invoice-json" />
+            </CardContent>
+          </Card>
+        </TabsContent>
+      </Tabs>
     </div>
 
     <ExportDialog v-model:open="exportOpen" :scope="{ kind: 'invoice', invoiceId: inv.id }" scope-label="This Invoice" />

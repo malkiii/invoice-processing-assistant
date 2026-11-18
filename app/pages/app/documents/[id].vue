@@ -11,17 +11,13 @@ if (error.value?.statusCode === 404) throw createError({ statusCode: 404, status
 useHead({ title: () => doc.value?.name ?? 'Document' })
 
 // Live status: the Batch's event stream also carries this Document's changes.
-let source: EventSource | undefined
-onMounted(() => {
-  if (!doc.value) return
-  source = new EventSource(`/api/batches/${doc.value.batchId}/events`)
-  source.onopen = () => void refresh()
-  source.addEventListener('status', (e) => {
-    const change = JSON.parse((e as MessageEvent).data) as { documentId: string }
+useBatchEvents(() => [doc.value?.batchId], {
+  onOpen: () => void refresh(),
+  onChange: (change) => {
     if (change.documentId === id) void refresh()
-  })
+  },
 })
-onBeforeUnmount(() => source?.close())
+const inFlight = computed(() => !!doc.value && IN_FLIGHT_STATUSES.includes(doc.value.status))
 
 function formatCost(cost: number | null) {
   return cost == null ? '—' : cost < 0.01 ? cost.toFixed(4) : cost.toFixed(2)
@@ -58,11 +54,11 @@ async function remove() {
 </script>
 
 <template>
-  <div v-if="doc" class="grid gap-4">
+  <div v-if="doc" class="grid grid-cols-1 gap-4">
     <div class="flex flex-wrap items-start justify-between gap-4">
       <div class="min-w-0">
         <NuxtLink :to="`/app/batches/${doc.batchId}`" class="text-sm text-muted-foreground underline">Batch</NuxtLink>
-        <h1 class="truncate text-2xl font-semibold" :title="doc.name">{{ doc.name }}</h1>
+        <h1 class="text-2xl font-semibold break-all" :title="doc.name">{{ doc.name }}</h1>
         <div class="mt-1 flex flex-wrap items-center gap-3 text-sm text-muted-foreground">
           <DocumentStatusBadge :status="doc.status" :reason="doc.failureReason" />
           <span class="uppercase">{{ doc.format ?? '—' }}</span>
@@ -74,7 +70,7 @@ async function remove() {
       <div class="flex gap-2">
         <Button
           variant="outline"
-          :disabled="doc.status === 'queued' || doc.status === 'processing' || doc.status === 'uploading' || doc.status === 'fetching'"
+          :disabled="inFlight"
           @click="rerunOpen = true"
         >
           <RefreshCw class="size-4" /> Re-run
@@ -109,35 +105,35 @@ async function remove() {
     <section class="grid gap-2">
       <h2 class="text-lg font-semibold">Extraction history</h2>
       <p v-if="!doc.extractions.length" class="text-sm text-muted-foreground">
-        {{ doc.status === 'queued' || doc.status === 'processing' ? 'Waiting for the first Extraction…' : 'No Extractions yet.' }}
+        {{ inFlight ? 'Waiting for the first Extraction…' : 'No Extractions yet.' }}
       </p>
-      <div v-else class="overflow-x-auto rounded-lg border bg-card">
-        <table class="w-full text-sm">
-          <thead class="text-left text-muted-foreground">
+      <div v-else class="data-table-wrap">
+        <table class="data-table">
+          <thead>
             <tr>
-              <th class="px-3 py-2 font-medium">When</th>
-              <th class="px-3 py-2 font-medium">Model</th>
-              <th class="px-3 py-2 font-medium">Template</th>
-              <th class="px-3 py-2 text-right font-medium">Invoices</th>
-              <th class="px-3 py-2 text-right font-medium">Tokens in / out</th>
-              <th class="px-3 py-2 text-right font-medium">Duration</th>
-              <th class="px-3 py-2 text-right font-medium">Est. cost</th>
-              <th class="px-3 py-2"><span class="sr-only">Actions</span></th>
+              <th>When</th>
+              <th>Model</th>
+              <th>Template</th>
+              <th class="text-right">Invoices</th>
+              <th class="text-right">Tokens in / out</th>
+              <th class="text-right">Duration</th>
+              <th class="text-right">Est. cost</th>
+              <th><span class="sr-only">Actions</span></th>
             </tr>
           </thead>
-          <tbody class="divide-y">
+          <tbody>
             <tr v-for="ex in doc.extractions" :key="ex.id" :class="ex.isCurrent ? 'bg-accent/10' : ''">
-              <td class="px-3 py-2 whitespace-nowrap">
+              <td class="whitespace-nowrap">
                 {{ formatDateTime(ex.createdAt) }}
                 <span v-if="ex.isCurrent" class="ml-2 rounded bg-primary px-1.5 py-0.5 text-xs text-primary-foreground">current</span>
               </td>
-              <td class="px-3 py-2">{{ ex.modelId }} <span class="text-muted-foreground">({{ ex.providerKind }})</span></td>
-              <td class="px-3 py-2">{{ ex.templateName }}</td>
-              <td class="num px-3 py-2 text-right">{{ ex.invoiceCount }}</td>
-              <td class="num px-3 py-2 text-right">{{ ex.inputTokens }} / {{ ex.outputTokens }}</td>
-              <td class="num px-3 py-2 text-right">{{ (ex.durationMs / 1000).toFixed(1) }} s</td>
-              <td class="num px-3 py-2 text-right">{{ formatCost(ex.estimatedCost) }}</td>
-              <td class="px-3 py-2 text-right">
+              <td>{{ ex.modelId }} <span class="text-muted-foreground">({{ ex.providerKind }})</span></td>
+              <td>{{ ex.templateName }}</td>
+              <td class="num text-right whitespace-nowrap">{{ ex.invoiceCount }}</td>
+              <td class="num text-right whitespace-nowrap">{{ ex.inputTokens }} / {{ ex.outputTokens }}</td>
+              <td class="num text-right whitespace-nowrap">{{ (ex.durationMs / 1000).toFixed(1) }} s</td>
+              <td class="num text-right whitespace-nowrap">{{ formatCost(ex.estimatedCost) }}</td>
+              <td class="text-right">
                 <Button v-if="!ex.isCurrent" variant="ghost" size="sm" :disabled="!!switching" @click="makeCurrent(ex.id)">Make current</Button>
               </td>
             </tr>

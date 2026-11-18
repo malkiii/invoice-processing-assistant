@@ -45,7 +45,7 @@ async function remove(t: TemplateDto) {
 </script>
 
 <template>
-  <div class="grid gap-6">
+  <div class="grid grid-cols-1 gap-6">
     <div class="flex flex-wrap items-center justify-between gap-3">
       <div>
         <h1 class="text-2xl font-semibold">Templates</h1>
@@ -61,8 +61,8 @@ async function remove(t: TemplateDto) {
         class="flex flex-wrap items-center justify-between gap-3 rounded-lg border bg-card p-4"
         data-testid="template-row"
       >
-        <div class="grid gap-1">
-          <div class="flex items-center gap-2">
+        <div class="grid min-w-0 gap-1">
+          <div class="flex flex-wrap items-center gap-2">
             <NuxtLink :to="`/app/templates/${t.id}`" class="font-medium underline-offset-4 hover:underline">{{ t.name }}</NuxtLink>
             <Badge v-if="t.builtIn" variant="secondary">Built-in, read-only</Badge>
             <Badge v-if="t.isDefault">Default</Badge>

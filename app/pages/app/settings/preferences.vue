@@ -90,7 +90,7 @@ async function save() {
 </script>
 
 <template>
-  <div class="grid max-w-2xl gap-6">
+  <div class="grid max-w-2xl grid-cols-1 gap-6">
     <h1 class="text-2xl font-semibold">Settings</h1>
     <SettingsNav />
     <form class="grid gap-6" @submit.prevent="save">

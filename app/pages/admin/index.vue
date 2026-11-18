@@ -98,7 +98,7 @@ function statusClass(status: string) {
 </script>
 
 <template>
-  <div class="mx-auto grid max-w-5xl gap-6">
+  <div class="mx-auto grid max-w-5xl grid-cols-1 gap-6">
     <div>
       <h1 class="text-2xl font-semibold">Admin</h1>
       <p class="text-sm text-muted-foreground">Instance administration. User Documents and Invoices are not visible here.</p>
@@ -115,27 +115,29 @@ function statusClass(status: string) {
         <CardTitle>Users</CardTitle>
         <CardDescription>Disabling a User signs them out and blocks sign-in. Deleting removes all of their data and files.</CardDescription>
       </CardHeader>
-      <CardContent class="overflow-x-auto">
-        <table class="w-full text-sm">
-          <thead class="text-left text-muted-foreground">
-            <tr><th class="py-2 pr-4">Email</th><th class="pr-4">Name</th><th class="pr-4">Role</th><th class="pr-4">Status</th><th class="pr-4">Joined</th><th /></tr>
-          </thead>
-          <tbody>
-            <tr v-for="u in users" :key="u.id" class="border-t">
-              <td class="py-2 pr-4">{{ u.email }}</td>
-              <td class="pr-4">{{ u.name }}</td>
-              <td class="pr-4">{{ u.role }}</td>
-              <td class="pr-4">{{ u.disabled ? 'Disabled' : u.emailVerified ? 'Active' : 'Unverified' }}</td>
-              <td class="pr-4">{{ new Date(u.createdAt).toLocaleDateString() }}</td>
-              <td class="flex justify-end gap-2 py-2">
-                <template v-if="u.id !== me?.id && u.role !== 'admin'">
-                  <Button size="sm" variant="outline" @click="setDisabled(u.id, !u.disabled)">{{ u.disabled ? 'Enable' : 'Disable' }}</Button>
-                  <Button size="sm" variant="destructive" @click="deleteUser(u.id, u.email)">Delete</Button>
-                </template>
-              </td>
-            </tr>
-          </tbody>
-        </table>
+      <CardContent>
+        <div class="data-table-wrap">
+          <table class="data-table">
+            <thead>
+              <tr><th>Email</th><th>Name</th><th>Role</th><th>Status</th><th>Joined</th><th><span class="sr-only">Actions</span></th></tr>
+            </thead>
+            <tbody>
+              <tr v-for="u in users" :key="u.id">
+                <td class="break-all">{{ u.email }}</td>
+                <td>{{ u.name }}</td>
+                <td>{{ u.role }}</td>
+                <td>{{ u.disabled ? 'Disabled' : u.emailVerified ? 'Active' : 'Unverified' }}</td>
+                <td class="num whitespace-nowrap">{{ new Date(u.createdAt).toLocaleDateString() }}</td>
+                <td>
+                  <div v-if="u.id !== me?.id && u.role !== 'admin'" class="flex justify-end gap-2">
+                    <Button size="sm" variant="outline" @click="setDisabled(u.id, !u.disabled)">{{ u.disabled ? 'Enable' : 'Disable' }}</Button>
+                    <Button size="sm" variant="destructive" @click="deleteUser(u.id, u.email)">Delete</Button>
+                  </div>
+                </td>
+              </tr>
+            </tbody>
+          </table>
+        </div>
       </CardContent>
     </Card>
 
@@ -145,14 +147,14 @@ function statusClass(status: string) {
         <CardDescription>Invite links are valid for 7 days and only for the invited email.</CardDescription>
       </CardHeader>
       <CardContent class="grid gap-4">
-        <form class="flex gap-2" @submit.prevent="invite">
+        <form class="flex flex-wrap gap-2" @submit.prevent="invite">
           <Label for="invite-email" class="sr-only">Email</Label>
           <Input id="invite-email" v-model="inviteEmail" type="email" placeholder="name@example.com" required class="max-w-sm" />
           <Button type="submit">Invite</Button>
         </form>
         <ul v-if="invites?.length" class="grid gap-1 text-sm">
-          <li v-for="i in invites" :key="i.id" class="flex items-center justify-between border-t py-2">
-            <span>{{ i.email }} <span class="text-muted-foreground">· expires {{ new Date(i.expiresAt).toLocaleDateString() }}</span></span>
+          <li v-for="i in invites" :key="i.id" class="flex items-center justify-between gap-2 border-t py-2">
+            <span class="min-w-0 break-all">{{ i.email }} <span class="text-muted-foreground">· expires {{ new Date(i.expiresAt).toLocaleDateString() }}</span></span>
             <Button size="sm" variant="ghost" @click="revokeInvite(i.id)">Revoke</Button>
           </li>
         </ul>

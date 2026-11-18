@@ -50,18 +50,35 @@ async function submitUrls() {
   }
 }
 
+// Live status for the Batches started here, so queued Documents move on without a reload.
+useBatchEvents(() => [batchId.value, urlBatch.value?.batchId], {
+  onChange: (change) => {
+    const item = items.value.find((i) => i.id === change.documentId)
+    if (item) {
+      item.status = change.status
+      item.failureReason = change.failureReason
+    }
+    const doc = urlBatch.value?.documents.find((d) => d.id === change.documentId)
+    if (doc) {
+      doc.status = change.status
+      doc.failureReason = change.failureReason
+    }
+  },
+})
+
 const summary = computed(() => {
   const done = items.value.filter((i) => i.phase === 'done')
   return {
     done: done.length,
-    queued: done.filter((i) => i.status === 'queued').length,
+    queued: done.filter((i) => i.status === 'queued' || i.status === 'processing').length,
+    extracted: done.filter((i) => i.status === 'extracted').length,
     failed: done.filter((i) => i.status === 'failed').length,
   }
 })
 </script>
 
 <template>
-  <div class="grid max-w-4xl gap-6">
+  <div class="grid max-w-4xl grid-cols-1 gap-6">
     <div>
       <h1 class="text-2xl font-semibold">Intake</h1>
       <p class="text-sm text-muted-foreground">
@@ -71,7 +88,7 @@ const summary = computed(() => {
     </div>
 
     <div
-      class="flex flex-col items-center justify-center gap-3 rounded-lg border-2 border-dashed p-10 text-center transition-colors"
+      class="flex flex-col items-center justify-center gap-3 rounded-lg border-2 border-dashed p-6 text-center transition-colors sm:p-10"
       :class="dragging ? 'border-primary bg-primary/5' : 'border-border'"
       data-testid="drop-zone"
       @dragover.prevent="dragging = true"
@@ -98,11 +115,12 @@ const summary = computed(() => {
       <CardHeader>
         <CardTitle>Uploads</CardTitle>
         <CardDescription>
-          <span class="num">{{ summary.done }}</span> of <span class="num">{{ items.length }}</span> checked Ã‚Â·
-          <span class="num">{{ summary.queued }}</span> queued Ã‚Â·
+          <span class="num">{{ summary.done }}</span> of <span class="num">{{ items.length }}</span> checked ·
+          <span class="num">{{ summary.queued }}</span> in progress ·
+          <span class="num">{{ summary.extracted }}</span> extracted ·
           <span class="num">{{ summary.failed }}</span> failed
           <template v-if="batchId">
-            Ã‚Â· <NuxtLink :to="`/app/batches/${batchId}`" class="underline">View Batch</NuxtLink>
+            · <NuxtLink :to="`/app/batches/${batchId}`" class="underline">View Batch</NuxtLink>
           </template>
         </CardDescription>
       </CardHeader>
@@ -113,7 +131,7 @@ const summary = computed(() => {
               <span class="min-w-0 flex-1 truncate" :title="item.name">{{ item.name }}</span>
               <span class="num text-xs text-muted-foreground">{{ formatBytes(item.size) }}</span>
               <span v-if="item.phase === 'uploading'" class="num w-10 text-right text-xs">{{ Math.round(item.progress * 100) }}%</span>
-              <span v-else-if="item.phase === 'checking'" class="text-xs text-muted-foreground">checkingÃ¢â‚¬Â¦</span>
+              <span v-else-if="item.phase === 'checking'" class="text-xs text-muted-foreground">checking…</span>
               <DocumentStatusBadge v-if="item.phase === 'done'" :status="item.status" :reason="item.failureReason" />
             </div>
             <div v-if="item.phase === 'uploading' || item.phase === 'waiting'" class="h-1 overflow-hidden rounded bg-muted">

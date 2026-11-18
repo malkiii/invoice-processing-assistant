@@ -69,7 +69,7 @@ function onType(field: DraftField) {
         >
           <GripVertical class="size-4" />
         </span>
-        <div class="grid flex-1 gap-2 sm:grid-cols-3">
+        <div class="grid min-w-0 flex-1 gap-2 sm:grid-cols-3">
           <label class="grid gap-1 text-xs text-muted-foreground">
             Label
             <Input v-model="field.label" :disabled="readonly" placeholder="Invoice number" @input="onLabel(field)" />
